@@ -30,8 +30,8 @@ export interface Letter {
  */
 export const LETTERS: Letter[] = [
   // Якоря — соединяются тонкими линиями в созвездие.
-  { id: 1, text: "Познакомились 04.09.2025", category: "anchor", starX: 0.118, starY: 0.292, constellation: "первые", isEternal: false },
-  { id: 2, text: "Наш первый поцелуй — 08.09.2025", category: "anchor", starX: 0.196, starY: 0.208, constellation: "первые", isEternal: false },
+  { id: 1, text: "Познакомились 4 сентября", category: "anchor", starX: 0.118, starY: 0.292, constellation: "первые", isEternal: false },
+  { id: 2, text: "Наш первый поцелуй — 8 сентября", category: "anchor", starX: 0.196, starY: 0.208, constellation: "первые", isEternal: false },
   { id: 3, text: "Наш первый поцелуй в Таврическом саду, под деревом", category: "anchor", starX: 0.298, starY: 0.170, constellation: "первые", isEternal: false },
   { id: 4, text: "На первом свидании я читал тебе стихи у кофейни Ohaus на Чёрной речке", category: "anchor", starX: 0.402, starY: 0.212, constellation: "первые", isEternal: false },
   { id: 5, text: "Первый фильм, который мы посмотрели, — «Я — начало»", category: "anchor", starX: 0.458, starY: 0.310, constellation: "первые", isEternal: false },
@@ -49,7 +49,7 @@ export const LETTERS: Letter[] = [
 
   // Признания — редкие и самые яркие.
   { id: 15, text: "Я очень тебя люблю!", category: "confession", starX: 0.676, starY: 0.452, constellation: null, isEternal: false },
-  { id: 16, text: "Поцелуи с тобой как нежные прикосновения ангела", category: "confession", starX: 0.872, starY: 0.672, constellation: null, isEternal: false },
+  { id: 16, text: "Поцелуи с тобой — как нежные прикосновения ангела", category: "confession", starX: 0.872, starY: 0.672, constellation: null, isEternal: false },
   { id: 17, text: "Ты смелая, а я боюсь аттракционов и потерять тебя", category: "confession", starX: 0.104, starY: 0.742, constellation: null, isEternal: false },
   { id: 18, text: "ОБСЕССИЯ", category: "confession", starX: 0.906, starY: 0.556, constellation: null, isEternal: false, special: "obsession" },
   // Слот оставлен пустым намеренно: текст допишет он. Пока текста нет,
@@ -65,14 +65,59 @@ export function speakingLetters(all: Letter[] = LETTERS): Letter[] {
   return all.filter((l) => !l.isEternal && l.text.trim().length > 0);
 }
 
-/** Линии созвездия: последовательная цепочка по порядку id внутри группы. */
-export function constellationChains(all: Letter[] = LETTERS): Letter[][] {
-  const groups = new Map<string, Letter[]>();
-  for (const l of all) {
-    if (!l.constellation) continue;
-    const g = groups.get(l.constellation) ?? [];
-    g.push(l);
-    groups.set(l.constellation, g);
+interface Point {
+  x: number;
+  y: number;
+}
+
+/**
+ * Мини-созвездия: жёлтые звёзды-письма соединяются в НЕСКОЛЬКО небольших
+ * групп, а не в одно большое созвездие.
+ *
+ * Строим остовное дерево (Краскал по возрастанию длины рёбер) и отбрасываем
+ * связи длиннее порога — так далёкие звёзды не соединяются, и небо распадается
+ * на несколько отдельных рисунков. Расстояние взвешено по вертикали, потому
+ * что на телефоне экран вытянут, и близкие по вертикали звёзды визуально
+ * дальше. Возвращаются рёбра — по паре точек на линию.
+ */
+export function miniConstellations(all: Letter[] = LETTERS): Point[][] {
+  const stars: Point[] = all
+    .filter((l) => !l.isEternal && l.text.trim().length > 0)
+    .map((l) => ({ x: l.starX, y: l.starY }));
+
+  const WY = 1.7; // вес вертикали (примерно пропорции телефона)
+  const THRESHOLD = 0.3;
+  const MAX_SIZE = 5; // потолок кластера — иначе всё слипается в одно созвездие
+  const dist = (a: Point, b: Point) => Math.hypot(a.x - b.x, (a.y - b.y) * WY);
+
+  const edges: Array<{ i: number; j: number; d: number }> = [];
+  for (let i = 0; i < stars.length; i++) {
+    for (let j = i + 1; j < stars.length; j++) {
+      edges.push({ i, j, d: dist(stars[i], stars[j]) });
+    }
   }
-  return [...groups.values()].map((g) => g.sort((a, b) => a.id - b.id));
+  edges.sort((a, b) => a.d - b.d);
+
+  const parent = stars.map((_, i) => i);
+  const size = stars.map(() => 1);
+  const find = (x: number): number => {
+    while (parent[x] !== x) {
+      parent[x] = parent[parent[x]];
+      x = parent[x];
+    }
+    return x;
+  };
+
+  const chains: Point[][] = [];
+  for (const e of edges) {
+    if (e.d > THRESHOLD) break; // рёбра отсортированы — дальше только длиннее
+    const ri = find(e.i);
+    const rj = find(e.j);
+    if (ri === rj) continue; // без циклов
+    if (size[ri] + size[rj] > MAX_SIZE) continue; // не даём кластеру разрастись
+    parent[ri] = rj;
+    size[rj] += size[ri];
+    chains.push([stars[e.i], stars[e.j]]);
+  }
+  return chains;
 }

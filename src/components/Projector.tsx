@@ -56,7 +56,7 @@ export default function Projector({ onFire, playing }: ProjectorProps) {
           opacity: playing ? 0 : 1,
         }}
       >
-        <span className="projector-label font-mono text-[10px] font-extralight tracking-[0.28em] whitespace-nowrap text-amber/45">
+        <span className="projector-label font-mono text-[11px] font-light tracking-[0.2em] whitespace-nowrap text-amber/75">
           зажги воспоминание
         </span>
       </div>

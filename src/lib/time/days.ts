@@ -15,18 +15,28 @@ export function civilDateInTz(at: Date, tz: string): [number, number, number] {
   return [y, m, d];
 }
 
+export interface Clock {
+  hours: number;
+  minutes: number;
+  seconds: number;
+}
+
 /**
- * Час её суток, 0..23. Спутник календарных дней: в её полночь час обнуляется,
- * а день прибавляется — пара «дни + часы» тикает вперёд и перекатывается.
+ * Её текущее время суток — часы, минуты, секунды. Спутник календарных дней:
+ * в её полночь всё обнуляется, а день прибавляется, и пара «дни + время»
+ * тикает вперёд, перекатываясь через полночь.
  */
-export function hourInTz(at: Date, tz: string): number {
-  const hh = new Intl.DateTimeFormat("en-GB", {
+export function clockInTz(at: Date, tz: string): Clock {
+  const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone: tz,
     hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
     hour12: false,
-  }).format(at);
-  // en-GB может вернуть "24" в полночь — приводим к 0.
-  return Number(hh) % 24;
+  }).formatToParts(at);
+  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+  // en-GB может вернуть час "24" в полночь — приводим к 0.
+  return { hours: get("hour") % 24, minutes: get("minute"), seconds: get("second") };
 }
 
 /** Разница календарных дат в сутках. */

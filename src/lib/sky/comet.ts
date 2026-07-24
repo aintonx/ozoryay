@@ -50,45 +50,93 @@ export function drawComet(
   if (alpha <= 0.001) return;
 
   const unit = Math.min(w, h);
+  const hx = bx(head);
+  const hy = by(head);
+
+  // Точки хвоста позади головы вдоль кривой.
+  const N = 22;
+  const tailSpan = 0.22;
+  const pts: Array<{ x: number; y: number; f: number; live: boolean }> = [];
+  for (let i = 0; i < N; i++) {
+    const f = i / (N - 1);
+    const t = head - tailSpan * f;
+    pts.push({ x: bx(Math.max(0, t)), y: by(Math.max(0, t)), f, live: t > 0 });
+  }
+
+  // Комета собирается на офскрине и композируется с размытием — так хвост из
+  // резких отрезков превращается в мягкий шлейф, а голова перестаёт быть
+  // «наклеенной» точкой. Это и делает её мягче и реалистичнее.
+  const blur = unit * 0.005 + 1.4;
+  const halo = unit * 0.05;
+  let minX = hx;
+  let minY = hy;
+  let maxX = hx;
+  let maxY = hy;
+  for (const q of pts) {
+    minX = Math.min(minX, q.x);
+    minY = Math.min(minY, q.y);
+    maxX = Math.max(maxX, q.x);
+    maxY = Math.max(maxY, q.y);
+  }
+  const pad = blur * 2 + halo;
+  minX -= pad;
+  minY -= pad;
+  maxX += pad;
+  maxY += pad;
+  const bw = Math.ceil(maxX - minX);
+  const bh = Math.ceil(maxY - minY);
+  if (bw <= 0 || bh <= 0) return;
+
+  const buf = cometScratch(bw, bh);
+  const g = buf.getContext("2d")!;
+  g.globalCompositeOperation = "source-over";
+  g.filter = "none";
+  g.clearRect(0, 0, bw, bh);
+  g.save();
+  g.translate(-minX, -minY);
+  g.lineCap = "round";
+
+  // Хвост — сужается и тает.
+  for (let i = 0; i < N - 1; i++) {
+    const a = pts[i];
+    const b = pts[i + 1];
+    if (!a.live && !b.live) continue;
+    g.strokeStyle = withAlpha(a.f < 0.28 ? AMBER_HOT : AMBER, (1 - a.f) * (1 - a.f) * 0.6);
+    g.lineWidth = Math.max(0.8, (1 - a.f) * unit * 0.007);
+    g.beginPath();
+    g.moveTo(a.x, a.y);
+    g.lineTo(b.x, b.y);
+    g.stroke();
+  }
+
+  // Голова — мягкий ореол и небольшое ядро.
+  const hr = Math.max(1.5, unit * 0.0045);
+  const glow = g.createRadialGradient(hx, hy, 0, hx, hy, hr * 8);
+  glow.addColorStop(0, withAlpha(AMBER_HOT, 0.95));
+  glow.addColorStop(0.22, withAlpha(AMBER, 0.42));
+  glow.addColorStop(1, withAlpha(AMBER, 0));
+  g.fillStyle = glow;
+  g.fillRect(hx - hr * 8, hy - hr * 8, hr * 16, hr * 16);
+  g.beginPath();
+  g.arc(hx, hy, hr * 0.8, 0, Math.PI * 2);
+  g.fillStyle = withAlpha(AMBER_HOT, 1);
+  g.fill();
+  g.restore();
 
   ctx.save();
   ctx.globalCompositeOperation = "lighter";
-  ctx.lineCap = "round";
-
-  // Хвост: цепочка отрезков вдоль кривой позади головы, сужается и тает.
-  const N = 18;
-  const tailSpan = 0.2;
-  for (let i = 0; i < N - 1; i++) {
-    const f0 = i / (N - 1);
-    const f1 = (i + 1) / (N - 1);
-    const t0 = head - tailSpan * f0;
-    const t1 = head - tailSpan * f1;
-    if (t0 <= 0 && t1 <= 0) continue;
-    const a = (1 - f0) * (1 - f0) * 0.55 * alpha;
-    ctx.strokeStyle = withAlpha(f0 < 0.3 ? AMBER_HOT : AMBER, a);
-    ctx.lineWidth = Math.max(0.6, (1 - f0) * unit * 0.006);
-    ctx.beginPath();
-    ctx.moveTo(bx(Math.max(0, t0)), by(Math.max(0, t0)));
-    ctx.lineTo(bx(Math.max(0, t1)), by(Math.max(0, t1)));
-    ctx.stroke();
-  }
-
-  // Голова: горячее ядро с ореолом.
-  const hx = bx(head);
-  const hy = by(head);
-  const r = Math.max(1.6, unit * 0.0042);
-  const halo = r * 11;
-  const g = ctx.createRadialGradient(hx, hy, 0, hx, hy, halo);
-  g.addColorStop(0, withAlpha(AMBER_HOT, 0.9 * alpha));
-  g.addColorStop(0.18, withAlpha(AMBER, 0.4 * alpha));
-  g.addColorStop(1, withAlpha(AMBER, 0));
-  ctx.fillStyle = g;
-  ctx.fillRect(hx - halo, hy - halo, halo * 2, halo * 2);
-
-  ctx.beginPath();
-  ctx.arc(hx, hy, r, 0, Math.PI * 2);
-  ctx.fillStyle = withAlpha(AMBER_HOT, alpha);
-  ctx.fill();
-
+  ctx.globalAlpha = alpha;
+  ctx.filter = `blur(${blur}px)`;
+  ctx.drawImage(buf, minX, minY);
+  ctx.filter = "none";
   ctx.restore();
+}
+
+/** Переиспользуемый офскрин для кометы. */
+let cometCanvas: HTMLCanvasElement | null = null;
+function cometScratch(w: number, h: number): HTMLCanvasElement {
+  if (!cometCanvas) cometCanvas = document.createElement("canvas");
+  if (cometCanvas.width !== w) cometCanvas.width = w;
+  if (cometCanvas.height !== h) cometCanvas.height = h;
+  return cometCanvas;
 }

@@ -144,14 +144,14 @@ body {
   animation: birth-label 4600ms var(--ease-emerge) 1600ms both;
 }
 
-/* Подпись прожектора: еле заметная медленная пульсация вместо «(жми)». */
+/* Подпись прожектора: медленная пульсация вместо «(жми)», но читаемая. */
 @keyframes projector-label {
   0%,
   100% {
-    opacity: 0.42;
+    opacity: 0.62;
   }
   50% {
-    opacity: 0.82;
+    opacity: 1;
   }
 }
 
@@ -159,11 +159,11 @@ body {
   animation: projector-label 3800ms ease-in-out infinite;
 }
 
-/* Подпись «написать в ночь»: та же еле заметная пульсация. */
+/* Подпись «написать в ночь»: та же спокойная пульсация, читаемая. */
 @keyframes soft-pulse {
   0%,
   100% {
-    opacity: 0.55;
+    opacity: 0.7;
   }
   50% {
     opacity: 1;

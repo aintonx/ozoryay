@@ -1,15 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { hourInTz, separationDays } from "./days";
+import { clockInTz, separationDays, type Clock } from "./days";
 
 const RESYNC_MS = 5 * 60 * 1000;
-const TICK_MS = 30 * 1000;
+const TICK_MS = 1000;
 
-export interface SeparationCounter {
+export interface SeparationCounter extends Clock {
   days: number;
-  /** Час её суток, 0..23. */
-  hours: number;
 }
 
 /**
@@ -17,12 +15,13 @@ export interface SeparationCounter {
  *
  * Начальные значения приходят с сервера уже посчитанными, поэтому при загрузке
  * не мигают нули и нет сдвига вёрстки. Дальше клиент один раз снимает офсет
- * относительно серверных часов и тикает локально, пересинхронизируясь раз в
- * пять минут и при каждом возврате на вкладку.
+ * относительно серверных часов и тикает локально каждую секунду,
+ * пересинхронизируясь раз в пять минут и при каждом возврате на вкладку.
  *
  * Дни только растут: если её часовой пояс сменится на западный, календарная
- * дата может откатиться назад — но разлука не может стать короче. Часы —
- * текущий час её суток; в её полночь они обнуляются, а день прибавляется.
+ * дата может откатиться назад — но разлука не может стать короче. Часы, минуты
+ * и секунды — её текущее время суток; в её полночь всё обнуляется, а день
+ * прибавляется.
  */
 export function useSeparationCounter(
   initial: SeparationCounter,
@@ -54,7 +53,7 @@ export function useSeparationCounter(
       const serverNow = new Date(Date.now() + offset.current);
       const days = separationDays(separationStartISO, tz, serverNow, peakDays.current);
       peakDays.current = days;
-      setCounter({ days, hours: hourInTz(serverNow, tz) });
+      setCounter({ days, ...clockInTz(serverNow, tz) });
     }
 
     function onVisible() {

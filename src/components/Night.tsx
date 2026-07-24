@@ -10,7 +10,7 @@ import TitleDawn from "./TitleDawn";
 import type { Settings } from "@/lib/defaults";
 import type { ProjectorImage } from "@/lib/sky/projector";
 import { useMemories } from "@/lib/useMemories";
-import { constellationChains, speakingLetters, type Letter } from "@/lib/letters";
+import { miniConstellations, speakingLetters, type Letter } from "@/lib/letters";
 import {
   getOpenedServerSnapshot,
   getOpenedSnapshot,
@@ -18,6 +18,7 @@ import {
   subscribeOpened,
 } from "@/lib/openedStore";
 import { makeDayStar } from "@/lib/sky/stars";
+import type { SeparationCounter } from "@/lib/time/useSeparationDays";
 import { useReducedMotion } from "@/lib/useReducedMotion";
 
 const NIGHT_KEY = "ozoryay.lastNight";
@@ -31,8 +32,7 @@ const BIRTH_TOTAL_MS = 7200;
 const PROJECTOR_AUTOFIRE_MS = 10800;
 
 interface NightProps {
-  days: number;
-  hours: number;
+  counter: SeparationCounter;
   settings: Settings;
   letters: Letter[];
 }
@@ -41,7 +41,8 @@ interface NightProps {
  * Владелец состояния ночи. Небо, текст и письма должны знать друг о друге:
  * когда письмо раскрывается, небо притухает, а строки счётчика уходят в тень.
  */
-export default function Night({ days, hours, settings, letters }: NightProps) {
+export default function Night({ counter, settings, letters }: NightProps) {
+  const days = counter.days;
   const [openId, setOpenId] = useState<number | null>(null);
   const [hintId, setHintId] = useState<number | null>(null);
   const [obsessionId, setObsessionId] = useState<number | null>(null);
@@ -136,10 +137,7 @@ export default function Night({ days, hours, settings, letters }: NightProps) {
     [letters],
   );
   const speaking = useMemo(() => speakingLetters(letters), [letters]);
-  const chains = useMemo(
-    () => constellationChains(letters).map((c) => c.map((l) => ({ x: l.starX, y: l.starY }))),
-    [letters],
-  );
+  const chains = useMemo(() => miniConstellations(letters), [letters]);
 
   const skyLetters = useMemo(
     () =>
@@ -215,7 +213,7 @@ export default function Night({ days, hours, settings, letters }: NightProps) {
         reducedMotion={reducedMotion}
       />
       <Overlay
-        initial={{ days, hours }}
+        initial={counter}
         separationStart={settings.separationStart}
         herTimezone={settings.herTimezone}
         distanceKm={settings.distanceKm}

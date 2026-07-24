@@ -30,7 +30,12 @@ export default function Overlay({
   distanceKm,
   dimmed,
 }: OverlayProps) {
-  const { days, hours } = useSeparationCounter(initial, separationStart, herTimezone);
+  const { days, hours, minutes, seconds } = useSeparationCounter(
+    initial,
+    separationStart,
+    herTimezone,
+  );
+  const clock = `${pad2(hours)}:${pad2(minutes)}:${pad2(seconds)}`;
   const [vp, setVp] = useState({ w: 0, h: 0 });
 
   useEffect(() => {
@@ -83,9 +88,8 @@ export default function Overlay({
               <span className="text-star/90">{days}</span>{" "}
               <span className="text-star/45">{plural(days, "день", "дня", "дней")}</span>
             </span>
-            <span className="font-mono text-[clamp(12px,3.2vw,15px)] font-extralight tabular-nums leading-none">
-              <span className="text-star/80">{hours}</span>{" "}
-              <span className="text-star/45">{plural(hours, "час", "часа", "часов")}</span>
+            <span className="font-mono text-star/70 text-[clamp(12px,3.2vw,15px)] font-extralight tabular-nums leading-none">
+              {clock}
             </span>
             <span className="font-text text-star/40 text-[clamp(11px,2.9vw,13px)] leading-tight">
               без тебя
