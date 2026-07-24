@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import LetterField from "./LetterField";
+import Message from "./Message";
 import Overlay from "./Overlay";
 import Projector from "./Projector";
 import Sky from "./Sky";
@@ -21,6 +22,7 @@ import { useReducedMotion } from "@/lib/useReducedMotion";
 
 const NIGHT_KEY = "ozoryay.lastNight";
 const PROJECTOR_SEEN_KEY = "ozoryay.projectorSeen";
+const MESSAGES_KEY = "ozoryay.messages";
 const OBSESSION_MS = 2600;
 const HINT_MS = 1100;
 const BIRTH_DELAY_MS = 1500;
@@ -49,6 +51,7 @@ export default function Night({ days, hours, settings, letters }: NightProps) {
     token: 0,
   });
   const [projectorPlaying, setProjectorPlaying] = useState(false);
+  const [cometToken, setCometToken] = useState(0);
   const timers = useRef<number[]>([]);
   const reducedMotion = useReducedMotion();
   const { takeNext } = useMemories();
@@ -90,6 +93,24 @@ export default function Night({ days, hours, settings, letters }: NightProps) {
   }, [takeNext]);
 
   const onProjectorDone = useCallback(() => setProjectorPlaying(false), []);
+
+  // Отправка послания: текст улетает кометой за горизонт. Пока нет базы,
+  // сохраняем на устройстве — заглушка под будущую настоящую доставку.
+  const sendMessage = useCallback(
+    (text: string) => {
+      try {
+        const raw = localStorage.getItem(MESSAGES_KEY);
+        const list: unknown = raw ? JSON.parse(raw) : [];
+        const arr = Array.isArray(list) ? list : [];
+        arr.push({ text, at: Date.now() });
+        localStorage.setItem(MESSAGES_KEY, JSON.stringify(arr));
+      } catch {
+        // Приватный режим — послание просто не сохранится локально.
+      }
+      if (!reducedMotion) setCometToken((t) => t + 1);
+    },
+    [reducedMotion],
+  );
 
   useEffect(() => {
     const pending = timers.current;
@@ -176,11 +197,6 @@ export default function Night({ days, hours, settings, letters }: NightProps) {
     }
   }, [openId, visible, speaking, openedIds]);
 
-  const openedCount = useMemo(
-    () => speaking.filter((l) => openedIds.includes(l.id)).length,
-    [speaking, openedIds],
-  );
-
   return (
     <>
       <Sky
@@ -195,6 +211,7 @@ export default function Night({ days, hours, settings, letters }: NightProps) {
         projectorImage={projector.image}
         projectorToken={projector.token}
         onProjectorDone={onProjectorDone}
+        cometToken={cometToken}
         reducedMotion={reducedMotion}
       />
       <Overlay
@@ -203,8 +220,6 @@ export default function Night({ days, hours, settings, letters }: NightProps) {
         herTimezone={settings.herTimezone}
         distanceKm={settings.distanceKm}
         dimmed={openId !== null || projectorPlaying}
-        lettersTotal={speaking.length}
-        lettersOpened={openedCount}
       />
       <LetterField
         letters={visible}
@@ -215,6 +230,7 @@ export default function Night({ days, hours, settings, letters }: NightProps) {
         reducedMotion={reducedMotion}
       />
       <Projector onFire={fireProjector} playing={projectorPlaying} />
+      <Message onSend={sendMessage} />
       {birthNight !== null && <BirthLabel night={birthNight} />}
       <TitleDawn />
     </>

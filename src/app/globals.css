@@ -159,6 +159,21 @@ body {
   animation: projector-label 3800ms ease-in-out infinite;
 }
 
+/* Подпись «написать в ночь»: та же еле заметная пульсация. */
+@keyframes soft-pulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.message-prompt {
+  animation: soft-pulse 4200ms ease-in-out infinite;
+}
+
 /* Эхо обсессии: слово проступает и тает, не задерживаясь. */
 @keyframes obsession-echo {
   0% {

@@ -13,13 +13,10 @@ interface OverlayProps {
   distanceKm: number;
   /** Раскрыто письмо или горит прожектор — весь текст уходит в тень. */
   dimmed: boolean;
-  lettersTotal: number;
-  lettersOpened: number;
 }
 
 const T_TIMER = 900;
 const T_DISTANCE = 1500;
-const T_FOOT = 2400;
 
 /** Оценка радиуса луны на экране — та же формула, что в рендерере. */
 function moonRadius(w: number, h: number) {
@@ -32,8 +29,6 @@ export default function Overlay({
   herTimezone,
   distanceKm,
   dimmed,
-  lettersTotal,
-  lettersOpened,
 }: OverlayProps) {
   const { days, hours } = useSeparationCounter(initial, separationStart, herTimezone);
   const [vp, setVp] = useState({ w: 0, h: 0 });
@@ -118,22 +113,6 @@ export default function Overlay({
         </>
       )}
 
-      {/* Подписи внизу — на левой оси. */}
-      <div className="absolute bottom-[clamp(20px,4vh,38px)] left-1/2 w-full max-w-[34rem] -translate-x-1/2 space-y-[9px] px-7">
-        <Emerge
-          delay={T_FOOT}
-          className="font-mono text-[11px] font-extralight tracking-[0.16em] text-star/22 tabular-nums"
-        >
-          {lettersTotal} {plural(lettersTotal, "звезда", "звезды", "звёзд")}{" "}
-          {plural(lettersTotal, "говорит", "говорят", "говорят")} · открыто {lettersOpened}
-        </Emerge>
-        <Emerge
-          delay={T_FOOT + 700}
-          className="font-mono text-[11px] font-extralight tracking-[0.2em] text-star/30"
-        >
-          Озоряй. Я жду.
-        </Emerge>
-      </div>
     </div>
   );
 }

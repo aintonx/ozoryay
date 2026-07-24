@@ -16,6 +16,7 @@ export interface SkyProps {
   projectorImage: ProjectorImage | null;
   projectorToken: number;
   onProjectorDone: () => void;
+  cometToken: number;
   reducedMotion: boolean;
 }
 

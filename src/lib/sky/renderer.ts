@@ -1,3 +1,4 @@
+import { COMET_DURATION, drawComet } from "./comet";
 import { LAYOUT, glowXFromBearing, groundYAt } from "./layout";
 import { makeMoonSprite, moonPhase } from "./moon";
 import { drawProjector, PROJECTOR_TOTAL, type ProjectorImage } from "./projector";
@@ -55,6 +56,8 @@ export interface SkyOptions {
   projectorToken: number;
   /** Вызывается один раз, когда прокат прожектора завершился. */
   onProjectorDone?: () => void;
+  /** Растёт при отправке послания — по нему запускается падение кометы. */
+  cometToken: number;
 }
 
 /** Сколько длится рождение звезды, секунд. */
@@ -93,6 +96,8 @@ export function createSky(canvas: HTMLCanvasElement, initial: SkyOptions): SkyHa
   let projToken = initial.projectorToken;
   let projStart = -Infinity;
   let projDoneFired = true;
+  let cometToken = initial.cometToken;
+  let cometStart = -Infinity;
 
   function layer(): [HTMLCanvasElement, CanvasRenderingContext2D] {
     const c = document.createElement("canvas");
@@ -205,6 +210,12 @@ export function createSky(canvas: HTMLCanvasElement, initial: SkyOptions): SkyHa
       ? Math.min(easeOut(clamp01(projE / 1.4)), easeOut(clamp01((PROJECTOR_TOTAL - projE) / 1.0)))
       : 0;
 
+    if (opts.cometToken !== cometToken) {
+      cometToken = opts.cometToken;
+      cometStart = now;
+    }
+    const cometE = (now - cometStart) / 1000;
+
     if (backdrop) ctx.drawImage(backdrop, 0, 0, w, h);
 
     // Свет рождения. Без него событие зависит от того, какая звезда выпала:
@@ -250,6 +261,12 @@ export function createSky(canvas: HTMLCanvasElement, initial: SkyOptions): SkyHa
     if (moon) {
       const size = moon.width / dpr;
       ctx.drawImage(moon, LAYOUT.moon.x * w - size / 2, LAYOUT.moon.y * h - size / 2, size, size);
+    }
+
+    // Комета — до силуэта земли: у горизонта её скрывают холмы, и она уходит
+    // за них, а не гаснет в воздухе.
+    if (cometE >= 0 && cometE <= COMET_DURATION) {
+      drawComet(ctx, w, h, cometE, opts.bearingDeg);
     }
 
     if (ground) ctx.drawImage(ground, 0, 0, w, h);
