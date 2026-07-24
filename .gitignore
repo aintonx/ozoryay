@@ -24,6 +24,10 @@
 .DS_Store
 *.pem
 
+# Оригиналы фотографий (мастера). Веб-версии лежат в public/memories и
+# коммитятся; сюда — тяжёлые исходники, которым не место в деплое.
+/memories-source
+
 # debug
 npm-debug.log*
 yarn-debug.log*

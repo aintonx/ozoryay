@@ -1,1 +1,213 @@
 @import "tailwindcss";
+
+@theme {
+  /* Палитра. Шесть значений, больше ни одного тона. */
+  --color-night-deep: #05070f;
+  --color-night: #0a0e1a;
+  --color-horizon: #14203a;
+  --color-star: #c9d6f0;
+  --color-amber: #f2c57c;
+  --color-amber-hot: #ffe3b0;
+
+  /* Роли шрифтов. Переменные подставляет next/font в layout. */
+  --font-display: var(--font-prata), Georgia, serif;
+  --font-letter: var(--font-spectral), Georgia, serif;
+  --font-text: var(--font-golos), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
+
+  /* Кривые и длительности движения. */
+  --ease-emerge: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  height: 100%;
+  background: var(--color-night-deep);
+  color: var(--color-star);
+}
+
+body {
+  font-family: var(--font-text);
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/*
+ * Появление: 600–800 мс, прозрачность плюс размытие 5px → 0.
+ * Ничего не приезжает, не отскакивает и не растёт из нуля.
+ */
+@keyframes emerge {
+  from {
+    opacity: 0;
+    filter: blur(5px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+.emerge {
+  animation: emerge 720ms var(--ease-emerge) both;
+}
+
+/*
+ * Заголовок-рассвет: восходит из-за горизонта, держится 5 секунд и уходит
+ * обратно за линию холмов. Подъём замедляется к вершине, уход — ускоряется.
+ * Клип по силуэту земли делает сам компонент; здесь только движение и свет.
+ *
+ * Общая длительность 10s: подъём 0→26% (2.6s), держит 26→76% (5s),
+ * уход 76→100% (2.4s).
+ */
+@keyframes title-dawn {
+  0% {
+    transform: translateY(30dvh);
+    opacity: 0;
+    animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  13% {
+    opacity: 1;
+  }
+  26% {
+    transform: translateY(0);
+  }
+  74% {
+    transform: translateY(0);
+    opacity: 1;
+    /* Мягкое ускорение вниз: заголовок погружается за холмы, а не падает
+       рывком. Исчезает по контуру земли — прозрачность лишь страхует в конце. */
+    animation-timing-function: cubic-bezier(0.5, 0, 0.82, 0.46);
+  }
+  95% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(38dvh);
+    opacity: 0;
+  }
+}
+
+.title-dawn {
+  animation: title-dawn 10000ms both;
+}
+
+/* Зарево под заголовком — тёплое, «почти» рассвет: разгорается и гаснет. */
+@keyframes title-dawn-glow {
+  0% {
+    opacity: 0;
+  }
+  24% {
+    opacity: 1;
+  }
+  74% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.title-dawn-glow {
+  animation: title-dawn-glow 10000ms ease-in-out both;
+}
+
+/*
+ * Подпись к рождающейся звезде. Ждёт, пока звезда разгорится,
+ * держится недолго и уходит вместе с её лишней яркостью.
+ */
+@keyframes birth-label {
+  0% {
+    opacity: 0;
+    filter: blur(4px);
+  }
+  22% {
+    opacity: 1;
+    filter: blur(0);
+  }
+  64% {
+    opacity: 1;
+    filter: blur(0);
+  }
+  100% {
+    opacity: 0;
+    filter: blur(3px);
+  }
+}
+
+.birth-label {
+  animation: birth-label 4600ms var(--ease-emerge) 1600ms both;
+}
+
+/* Подпись прожектора: еле заметная медленная пульсация вместо «(жми)». */
+@keyframes projector-label {
+  0%,
+  100% {
+    opacity: 0.42;
+  }
+  50% {
+    opacity: 0.82;
+  }
+}
+
+.projector-label {
+  animation: projector-label 3800ms ease-in-out infinite;
+}
+
+/* Эхо обсессии: слово проступает и тает, не задерживаясь. */
+@keyframes obsession-echo {
+  0% {
+    opacity: 0;
+    filter: blur(6px);
+  }
+  22% {
+    opacity: 0.62;
+    filter: blur(0);
+  }
+  100% {
+    opacity: 0;
+    filter: blur(5px);
+  }
+}
+
+.obsession-echo {
+  animation: obsession-echo 1900ms var(--ease-emerge) both;
+}
+
+/* Фокус виден, но остаётся светом, а не рамкой интерфейса. */
+:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-amber-hot) 50%, transparent);
+  border-radius: 4px;
+}
+
+/*
+ * Зона нажатия у звезды — 44px, иначе в неё не попасть пальцем. Но кольцо
+ * фокуса по её границе висело бы в небе обручем: оно садится на саму точку.
+ */
+.star-hit:focus-visible {
+  box-shadow: none;
+}
+
+.star-hit:focus-visible::after {
+  content: "";
+  position: absolute;
+  inset: 13px;
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-amber-hot) 45%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

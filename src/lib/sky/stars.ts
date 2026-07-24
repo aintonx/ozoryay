@@ -1,0 +1,134 @@
+import { LAYOUT } from "./layout";
+import { mulberry32, r2 } from "./prng";
+
+export interface DayStar {
+  /** Порядковый номер ночи. Звезда №57 всегда в одной и той же точке. */
+  night: number;
+  x: number; // 0..1
+  y: number; // 0..1
+  /** Яркость 0..1: определяет и размер, и базовую прозрачность. */
+  mag: number;
+  /** Период мерцания в секундах, 3..8. */
+  period: number;
+  /** Начальная фаза, чтобы небо не дышало в такт. */
+  phase: number;
+}
+
+/**
+ * Звёзды-дни. Позиция выводится только из номера ночи, поэтому небо
+ * не перетасовывается между визитами — оно растёт.
+ *
+ * База — последовательность R2 (почти равномерная, без следа решётки),
+ * поверх неё мелкое дрожание от mulberry32: без дрожания расположение
+ * читается как узор, с чистым random — как комки.
+ */
+export function makeDayStars(count: number): DayStar[] {
+  const stars: DayStar[] = [];
+  for (let n = 1; n <= count; n++) stars.push(makeDayStar(n));
+  return stars;
+}
+
+/**
+ * Зона вокруг луны, куда звёзды не ставятся.
+ *
+ * Рядом с луной слабые звёзды не видны и в настоящем небе — засветка съедает
+ * их. Но здесь важнее другое: без этой зоны любая звезда может выпасть прямо
+ * на диск и потеряться. Именно так случилось с ночью №24 — рождение звезды,
+ * ради которого всё затевалось, произошло бы в ореоле луны и осталось
+ * незамеченным.
+ */
+const MOON_KEEP_OUT = { rx: 0.125, ry: 0.088 };
+
+function insideMoonHalo(x: number, y: number): boolean {
+  const dx = (x - LAYOUT.moon.x) / MOON_KEEP_OUT.rx;
+  const dy = (y - LAYOUT.moon.y) / MOON_KEEP_OUT.ry;
+  return dx * dx + dy * dy < 1;
+}
+
+/**
+ * Одна звезда по номеру ночи. Считается без остальных: нужна для подписи.
+ *
+ * Если позиция попала в засветку луны, звезда переставляется по другому
+ * индексу той же последовательности. Выбор остаётся детерминированным:
+ * звезда №57 всегда окажется там же, где была вчера.
+ */
+export function makeDayStar(n: number): DayStar {
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const s = placeStar(n, n + attempt * 7919);
+    if (!insideMoonHalo(s.x, s.y)) return s;
+  }
+  // За восемь попыток промахнуться мимо неба нельзя, но пусть будет ответ.
+  return placeStar(n, n + 7 * 7919);
+}
+
+function placeStar(night: number, seed: number): DayStar {
+  const [rx, ry] = r2(seed);
+  const rand = mulberry32(seed * 2654435761);
+
+  // Дрожание крупное намеренно: при малом числе звёзд решётка R2
+  // просвечивает диагональными рядами и небо читается как узор.
+  const jitterX = (rand() - 0.5) * 0.13;
+  const jitterY = (rand() - 0.5) * 0.13;
+
+  const x = clamp01(rx + jitterX);
+
+  // Плотность падает к горизонту: там, где дымка, звёзд видно меньше.
+  const shaped = Math.pow(clamp01(ry + jitterY), 1.16);
+  const y = LAYOUT.skyTop + shaped * (LAYOUT.groundY - 0.055 - LAYOUT.skyTop);
+
+  // Ярких звёзд мало, слабых много — как в настоящем небе.
+  const mag = Math.pow(rand(), 2.6);
+
+  return { night, x, y, mag, period: 3 + rand() * 5, phase: rand() * Math.PI * 2 };
+}
+
+function clamp01(v: number) {
+  return v < 0 ? 0 : v > 1 ? 1 : v;
+}
+
+/**
+ * Спрайт звезды: мягкое пятно с плавным затуханием.
+ *
+ * Рисовать сотни радиальных градиентов в каждом кадре недопустимо, поэтому
+ * градиент считается один раз, а дальше выкладывается через drawImage.
+ */
+export function makeStarSprite(color: string, radius: number, dpr: number): HTMLCanvasElement {
+  // Ореол тем шире, чем ярче звезда: у слабых он почти отсутствует,
+  // иначе мелкие звёзды превращаются в одинаковые ватные пятна.
+  const spread = 2.4 + (radius / 1.75) * 2.6;
+  const outer = radius * spread;
+  const size = Math.max(4, Math.ceil(outer * 2 * dpr));
+  const c = document.createElement("canvas");
+  c.width = size;
+  c.height = size;
+
+  const ctx = c.getContext("2d")!;
+  const mid = size / 2;
+  const rPx = radius * dpr;
+
+  const g = ctx.createRadialGradient(mid, mid, 0, mid, mid, outer * dpr);
+  g.addColorStop(0, withAlpha(color, 0.85));
+  g.addColorStop(0.16, withAlpha(color, 0.4));
+  g.addColorStop(0.42, withAlpha(color, 0.09));
+  g.addColorStop(0.72, withAlpha(color, 0.015));
+  g.addColorStop(1, withAlpha(color, 0));
+
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, size, size);
+
+  // Плотное ядро: без него звезда выглядит размытым пятном, а не точкой.
+  ctx.beginPath();
+  ctx.arc(mid, mid, rPx, 0, Math.PI * 2);
+  ctx.fillStyle = withAlpha(color, 1);
+  ctx.fill();
+
+  return c;
+}
+
+export function withAlpha(hex: string, alpha: number): string {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
