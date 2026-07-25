@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import Hints from "./Hints";
 import LetterField from "./LetterField";
 import Message from "./Message";
 import Overlay from "./Overlay";
@@ -229,6 +230,7 @@ export default function Night({ counter, settings, letters }: NightProps) {
       />
       <Projector onFire={fireProjector} playing={projectorPlaying} />
       <Message onSend={sendMessage} />
+      <Hints letters={visible} busy={openId !== null || projectorPlaying} />
       {birthNight !== null && <BirthLabel night={birthNight} />}
       <TitleDawn />
     </>

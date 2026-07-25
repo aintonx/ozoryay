@@ -23,6 +23,11 @@ function moonRadius(w: number, h: number) {
   return Math.max(18, Math.min(w * 0.068, h * 0.055, 34));
 }
 
+/** Ведущий ноль: время должно быть приборным, 04:07:09, а не 4:7:9. */
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
 export default function Overlay({
   initial,
   separationStart,
