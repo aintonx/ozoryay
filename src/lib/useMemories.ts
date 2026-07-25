@@ -28,7 +28,8 @@ export function useMemories() {
 
   useEffect(() => {
     let alive = true;
-    fetch("/memories/manifest.json", { cache: "force-cache" })
+    // Путь относительный: сайт живёт и в корне домена, и в подпапке на github.io.
+    fetch("memories/manifest.json", { cache: "force-cache" })
       .then((r) => (r.ok ? r.json() : []))
       .then((list: ManifestEntry[]) => {
         if (!alive || !Array.isArray(list) || list.length === 0) return;

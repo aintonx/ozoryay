@@ -4,12 +4,11 @@ import { useEffect, useState } from "react";
 import { Emerge } from "./Emerge";
 import { LAYOUT } from "@/lib/sky/layout";
 import { plural, spaceThousands } from "@/lib/text/plural";
-import { useSeparationCounter, type SeparationCounter } from "@/lib/time/useSeparationDays";
+import type { SeparationCounter } from "@/lib/time/useSeparationDays";
 
 interface OverlayProps {
-  initial: SeparationCounter;
-  separationStart: string;
-  herTimezone: string;
+  /** Считается один раз в Night — здесь только показываем. */
+  counter: SeparationCounter;
   distanceKm: number;
   /** Раскрыто письмо или горит прожектор — весь текст уходит в тень. */
   dimmed: boolean;
@@ -28,18 +27,8 @@ function pad2(n: number): string {
   return String(n).padStart(2, "0");
 }
 
-export default function Overlay({
-  initial,
-  separationStart,
-  herTimezone,
-  distanceKm,
-  dimmed,
-}: OverlayProps) {
-  const { days, hours, minutes, seconds } = useSeparationCounter(
-    initial,
-    separationStart,
-    herTimezone,
-  );
+export default function Overlay({ counter, distanceKm, dimmed }: OverlayProps) {
+  const { days, hours, minutes, seconds } = counter;
   const clock = `${pad2(hours)}:${pad2(minutes)}:${pad2(seconds)}`;
   const [vp, setVp] = useState({ w: 0, h: 0 });
 

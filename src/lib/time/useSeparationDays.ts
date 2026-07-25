@@ -24,25 +24,42 @@ export interface SeparationCounter extends Clock {
  * прибавляется.
  */
 export function useSeparationCounter(
-  initial: SeparationCounter,
   separationStartISO: string,
   tz: string,
 ): SeparationCounter {
-  const [counter, setCounter] = useState(initial);
+  // Первое значение считаем сразу по часам устройства — чтобы не мигали нули
+  // и не прыгала вёрстка. Через мгновение оно уточнится по времени сервера.
+  const [counter, setCounter] = useState<SeparationCounter>(() =>
+    compute(separationStartISO, tz, new Date(), 0),
+  );
   const offset = useRef(0); // серверное время минус местное
-  const peakDays = useRef(initial.days);
+  const peakDays = useRef(counter.days);
 
   useEffect(() => {
     let alive = true;
 
+    /**
+     * Время берём у сервера, а не у устройства: у части телефонов часы сбиты
+     * на минуты, а то и на сутки, и счётчик соврал бы.
+     *
+     * Сайт статический, своего эндпоинта нет — поэтому спрашиваем время у
+     * самого хостинга: в каждом HTTP-ответе есть служебный заголовок `Date`
+     * с временем сервера. Достаточно лёгкого HEAD-запроса без тела.
+     */
     async function sync() {
       const sent = Date.now();
       try {
-        const res = await fetch("/api/now", { cache: "no-store" });
-        const { now } = (await res.json()) as { now: number };
-        const received = Date.now();
-        // Половина времени обхода — поправка на дорогу ответа.
-        offset.current = now + (received - sent) / 2 - received;
+        // Спрашиваем саму страницу: она есть всегда, а HEAD не тянет тело.
+        const res = await fetch(`./?t=${sent}`, { method: "HEAD", cache: "no-store" });
+        const header = res.headers.get("date");
+        if (header) {
+          const serverNow = new Date(header).getTime();
+          const received = Date.now();
+          if (Number.isFinite(serverNow)) {
+            // Половина времени обхода — поправка на дорогу ответа.
+            offset.current = serverNow + (received - sent) / 2 - received;
+          }
+        }
       } catch {
         // Сеть отвалилась — продолжаем с последним известным офсетом.
       }
@@ -50,10 +67,9 @@ export function useSeparationCounter(
     }
 
     function recompute() {
-      const serverNow = new Date(Date.now() + offset.current);
-      const days = separationDays(separationStartISO, tz, serverNow, peakDays.current);
-      peakDays.current = days;
-      setCounter({ days, ...clockInTz(serverNow, tz) });
+      const next = compute(separationStartISO, tz, new Date(Date.now() + offset.current), peakDays.current);
+      peakDays.current = next.days;
+      setCounter(next);
     }
 
     function onVisible() {
@@ -74,4 +90,17 @@ export function useSeparationCounter(
   }, [separationStartISO, tz]);
 
   return counter;
+}
+
+/** Дни разлуки и её время суток на заданный момент. */
+function compute(
+  separationStartISO: string,
+  tz: string,
+  at: Date,
+  floorDays: number,
+): SeparationCounter {
+  return {
+    days: separationDays(separationStartISO, tz, at, floorDays),
+    ...clockInTz(at, tz),
+  };
 }

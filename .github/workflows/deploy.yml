@@ -1,0 +1,51 @@
+name: Деплой на GitHub Pages
+
+# Сайт пересобирается и выкладывается при каждом push в main —
+# так же, как это делал Vercel.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Параллельные выкладки не нужны: важен только последний push.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # BASE_PATH пуст: сайт живёт в корне своего домена.
+      # Для адреса вида aintonx.github.io/ozoryay сюда нужно "/ozoryay".
+      - run: npm run build
+        env:
+          BASE_PATH: ""
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: out
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

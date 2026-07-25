@@ -19,7 +19,7 @@ import {
   subscribeOpened,
 } from "@/lib/openedStore";
 import { makeDayStar } from "@/lib/sky/stars";
-import type { SeparationCounter } from "@/lib/time/useSeparationDays";
+import { useSeparationCounter } from "@/lib/time/useSeparationDays";
 import { useReducedMotion } from "@/lib/useReducedMotion";
 
 const NIGHT_KEY = "ozoryay.lastNight";
@@ -33,7 +33,6 @@ const BIRTH_TOTAL_MS = 7200;
 const PROJECTOR_AUTOFIRE_MS = 10800;
 
 interface NightProps {
-  counter: SeparationCounter;
   settings: Settings;
   letters: Letter[];
 }
@@ -42,7 +41,9 @@ interface NightProps {
  * Владелец состояния ночи. Небо, текст и письма должны знать друг о друге:
  * когда письмо раскрывается, небо притухает, а строки счётчика уходят в тень.
  */
-export default function Night({ counter, settings, letters }: NightProps) {
+export default function Night({ settings, letters }: NightProps) {
+  // Единственный счётчик на всю страницу: и небу (сколько звёзд), и надписям.
+  const counter = useSeparationCounter(settings.separationStart, settings.herTimezone);
   const days = counter.days;
   const [openId, setOpenId] = useState<number | null>(null);
   const [hintId, setHintId] = useState<number | null>(null);
@@ -214,9 +215,7 @@ export default function Night({ counter, settings, letters }: NightProps) {
         reducedMotion={reducedMotion}
       />
       <Overlay
-        initial={counter}
-        separationStart={settings.separationStart}
-        herTimezone={settings.herTimezone}
+        counter={counter}
         distanceKm={settings.distanceKm}
         dimmed={openId !== null || projectorPlaying}
       />

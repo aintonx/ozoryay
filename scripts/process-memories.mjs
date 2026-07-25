@@ -58,7 +58,9 @@ for (const file of files) {
     .toFile(join(OUT, name));
 
   if (temp) await rm(temp, { force: true });
-  manifest.push({ src: `/memories/${name}`, w: meta.width, h: meta.height });
+  // Путь относительный: сайт может жить и в корне домена, и в подпапке
+  // вида /ozoryay/ на github.io — абсолютный путь во втором случае сломается.
+  manifest.push({ src: `memories/${name}`, w: meta.width, h: meta.height });
   console.log(`${name}  ${meta.width}×${meta.height}  ${(meta.size / 1024).toFixed(0)} КБ  ← ${file}`);
 }
 
