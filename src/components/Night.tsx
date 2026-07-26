@@ -1,276 +1,259 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import Hints from "./Hints";
-import LetterField from "./LetterField";
-import Message from "./Message";
-import Chronometer from "./Chronometer";
-import Projector from "./Projector";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import HomeScreen from "./HomeScreen";
+import Screens, { type ScreenIndex } from "./Screens";
+import SkyScreen, { type SparkKind } from "./SkyScreen";
 import Sky from "./Sky";
+import SparkText from "./SparkText";
 import TitleDawn from "./TitleDawn";
-import { FEATURES, type Settings } from "@/lib/defaults";
-import type { ProjectorImage } from "@/lib/sky/projector";
-import { useMemories } from "@/lib/useMemories";
+import type { Settings } from "@/lib/defaults";
 import { speakingLetters, type Letter } from "@/lib/letters";
-import {
-  getOpenedServerSnapshot,
-  getOpenedSnapshot,
-  markOpened,
-  subscribeOpened,
-} from "@/lib/openedStore";
-import { makeDayStar } from "@/lib/sky/stars";
-import { useSeparationCounter } from "@/lib/time/useSeparationDays";
+import { MEMORIES } from "@/lib/memories";
+import type { ProjectorImage } from "@/lib/sky/projector";
+import { useDeck } from "@/lib/useDeck";
+import { useMemories } from "@/lib/useMemories";
 import { useObserver } from "@/lib/useObserver";
 import { useReducedMotion } from "@/lib/useReducedMotion";
+import { useSeparationCounter } from "@/lib/time/useSeparationDays";
 
-const NIGHT_KEY = "ozoryay.lastNight";
-const PROJECTOR_SEEN_KEY = "ozoryay.projectorSeen";
-const MESSAGES_KEY = "ozoryay.messages";
-const OBSESSION_MS = 2600;
-const HINT_MS = 1100;
-const BIRTH_DELAY_MS = 1500;
-const BIRTH_TOTAL_MS = 7200;
-// После заголовка-рассвета (~10с): сначала слова из-за горизонта, потом память.
-const PROJECTOR_AUTOFIRE_MS = 10800;
+/** Сколько держится текст вспышки. */
+const SPARK_MS = 9000;
+/** Сколько висит подсказка. */
+const HINT_MS = 5600;
+/** Пока летит поцелуй, кнопка ждёт. */
+const KISS_MS = 2600;
+/** Реплики диалога получают номера отсюда — чтобы не путались с письмами. */
+const DIALOG_ID_BASE = 1000;
+/** Сколько отговоривших звёзд остаётся гореть, прежде чем самые старые гаснут. */
+const LIT_LIMIT = 30;
+
+const HINT_TEXT = "нажми ещё раз — загорится новая звезда";
 
 interface NightProps {
   settings: Settings;
   letters: Letter[];
 }
 
+/** Что сейчас горит в небе. */
+interface Spark {
+  /** Свой у каждой звезды: по нему её узнаёт небо и не зажигает дважды. */
+  id: number;
+  /** Позиция звезды в долях вьюпорта. */
+  x: number;
+  y: number;
+  text: string;
+  /** Подпись под текстом: дата события или «моё послание». */
+  note?: string;
+  /** Чей голос — от этого зависит цвет текста. */
+  voice?: "her" | "him";
+}
+
 /**
- * Владелец состояния ночи. Небо, текст и письма должны знать друг о друге:
- * когда письмо раскрывается, небо притухает, а строки счётчика уходят в тень.
+ * Владелец состояния ночи.
+ *
+ * Два экрана над одним небом: виджеты и само небо. Небо не перерисовывается
+ * при переходе — уезжает только интерфейс, будто подняли глаза.
  */
 export default function Night({ settings, letters }: NightProps) {
-  // Единственный счётчик на всю страницу: и небу (сколько звёзд), и надписям.
   const counter = useSeparationCounter(settings.separationStart, settings.herTimezone);
-  // Небо растёт по календарным ночам её пояса: звезда рождается
-  // в её полночь, а не в час расставания.
-  const days = counter.nights;
-
-  // Откуда смотрим на небо: её город, а если она разрешит — её настоящее место.
   const observer = useObserver({
     lat: settings.herLat,
     lon: settings.herLon,
     city: settings.herCity,
   });
-  const [openId, setOpenId] = useState<number | null>(null);
-  const [hintId, setHintId] = useState<number | null>(null);
-  const [obsessionId, setObsessionId] = useState<number | null>(null);
-  const [birthNight, setBirthNight] = useState<number | null>(null);
+  const reducedMotion = useReducedMotion();
+  const { takeNext } = useMemories();
+
+  const [screen, setScreen] = useState<ScreenIndex>(0);
+  const [spark, setSpark] = useState<Spark | null>(null);
+  // Отговорившие звёзды остаются в небе тёплым следом: за вечер оно
+  // потихоньку заселяется тем, что мы друг другу сказали.
+  const [lit, setLit] = useState<Array<{ id: number; x: number; y: number }>>([]);
+  const [hint, setHint] = useState(false);
   const [projector, setProjector] = useState<{ image: ProjectorImage | null; token: number }>({
     image: null,
     token: 0,
   });
   const [projectorPlaying, setProjectorPlaying] = useState(false);
-  const [cometToken, setCometToken] = useState(0);
+  const [kissToken, setKissToken] = useState(0);
+  const [kissInFlight, setKissInFlight] = useState(false);
+
   const timers = useRef<number[]>([]);
-  const reducedMotion = useReducedMotion();
-  const { takeNext } = useMemories();
-  const openedIds = useSyncExternalStore(
-    subscribeOpened,
-    getOpenedSnapshot,
-    getOpenedServerSnapshot,
-  );
-
-  useEffect(() => {
-    // Рождение звезды — раз в сутки, а не на каждую перезагрузку.
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    try {
-      const seen = Number(localStorage.getItem(NIGHT_KEY) ?? 0);
-      if (days > seen) {
-        localStorage.setItem(NIGHT_KEY, String(days));
-        timers.current.push(window.setTimeout(() => setBirthNight(days), BIRTH_DELAY_MS));
-        timers.current.push(
-          window.setTimeout(() => setBirthNight(null), BIRTH_DELAY_MS + BIRTH_TOTAL_MS),
-        );
-      }
-    } catch {
-      // Без хранилища рождение просто не показывается — небо от этого не страдает.
-    }
-  }, [days]);
-
-  // Запуск прожектора. Пока идёт прокат — новый клик игнорируется.
-  const fireProjector = useCallback(async () => {
-    setProjectorPlaying((busy) => {
-      if (busy) return busy;
-      // Раскрытое письмо закрываем: два источника света спорить не должны.
-      setOpenId(null);
-      setObsessionId(null);
-      void takeNext().then((image) => {
-        setProjector((p) => ({ image, token: p.token + 1 }));
-      });
-      return true;
-    });
-  }, [takeNext]);
-
-  const onProjectorDone = useCallback(() => setProjectorPlaying(false), []);
-
-  // Отправка послания: текст улетает кометой за горизонт. Пока нет базы,
-  // сохраняем на устройстве — заглушка под будущую настоящую доставку.
-  const sendMessage = useCallback(
-    (text: string) => {
-      try {
-        const raw = localStorage.getItem(MESSAGES_KEY);
-        const list: unknown = raw ? JSON.parse(raw) : [];
-        const arr = Array.isArray(list) ? list : [];
-        arr.push({ text, at: Date.now() });
-        localStorage.setItem(MESSAGES_KEY, JSON.stringify(arr));
-      } catch {
-        // Приватный режим — послание просто не сохранится локально.
-      }
-      if (!reducedMotion) setCometToken((t) => t + 1);
-    },
-    [reducedMotion],
-  );
+  const sparkTimer = useRef<number | undefined>(undefined);
+  const dialogCount = useRef(0);
+  const hintSeen = useRef(false);
 
   useEffect(() => {
     const pending = timers.current;
-    return () => pending.forEach((t) => clearTimeout(t));
+    return () => {
+      pending.forEach((t) => window.clearTimeout(t));
+      window.clearTimeout(sparkTimer.current);
+    };
   }, []);
 
-  // При первом визите прожектор срабатывает сам — иначе половина гостей
-  // не догадается кликнуть. Только один раз и не при reduced-motion.
-  useEffect(() => {
-    if (!FEATURES.projector) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-    try {
-      if (localStorage.getItem(PROJECTOR_SEEN_KEY)) return;
-      localStorage.setItem(PROJECTOR_SEEN_KEY, "1");
-    } catch {
-      return;
-    }
-    timers.current.push(window.setTimeout(() => void fireProjector(), PROJECTOR_AUTOFIRE_MS));
-  }, [fireProjector]);
+  const later = useCallback((fn: () => void, ms: number) => {
+    timers.current.push(window.setTimeout(fn, ms));
+  }, []);
 
-  // Звезда без текста на небо не выходит: слот 19 ждёт своих слов.
-  const visible = useMemo(
-    () => letters.filter((l) => l.isEternal || l.text.trim().length > 0),
-    [letters],
-  );
+  // Письма, которым есть что сказать: без пустых слотов и без вечной звезды.
   const speaking = useMemo(() => speakingLetters(letters), [letters]);
-  // Своих линий между письмами больше нет: рисунок небу теперь дают
-  // настоящие созвездия, а вторая сетка поверх них — шум. Письма и так
-  // отличаются теплом.
-  const chains = useMemo<Array<Array<{ x: number; y: number }>>>(() => [], []);
 
+  const letterDeck = useDeck(speaking);
+  const dialogDeck = useDeck(MEMORIES);
+
+  /**
+   * Куда посадить звезду очередной реплики.
+   *
+   * У писем позиции свои, заданные навсегда. У реплик из переписки их нет —
+   * поэтому раскладываем по золотому углу: точки ложатся равномерно и
+   * не совпадают, сколько бы их ни было.
+   */
+  const dialogSpot = useCallback((n: number) => {
+    const golden = 2.39996;
+    const t = n * golden;
+    const r = 0.14 + 0.28 * Math.sqrt((n % 9) / 9);
+    return {
+      x: Math.min(0.86, Math.max(0.14, 0.5 + Math.cos(t) * r * 1.2)),
+      y: Math.min(0.56, Math.max(0.13, 0.33 + Math.sin(t) * r)),
+    };
+  }, []);
+
+  const showSpark = useCallback(
+    (s: Spark) => {
+      window.clearTimeout(sparkTimer.current);
+      setSpark(s);
+      // Одна и та же звезда не заводится дважды: письма приходят со своими
+      // номерами, и после нового круга колоды позиция бы просто задвоилась.
+      setLit((prev) =>
+        prev.some((p) => p.id === s.id)
+          ? prev
+          : [...prev, { id: s.id, x: s.x, y: s.y }].slice(-LIT_LIMIT),
+      );
+      sparkTimer.current = window.setTimeout(() => setSpark(null), SPARK_MS);
+
+      // Подсказка — один раз за визит и только после того, как первая звезда
+      // отговорила: поверх горящего текста она была бы суетой.
+      if (!hintSeen.current) {
+        hintSeen.current = true;
+        later(() => setHint(true), SPARK_MS + 400);
+        later(() => setHint(false), SPARK_MS + 400 + HINT_MS);
+      }
+    },
+    [later],
+  );
+
+  const onSpark = useCallback(
+    (kind: SparkKind) => {
+      if (kind === "memory") {
+        if (projectorPlaying) return;
+        setSpark(null);
+        setProjectorPlaying(true);
+        void takeNext().then((image) => {
+          setProjector((p) => ({ image, token: p.token + 1 }));
+        });
+        return;
+      }
+
+      if (kind === "letter") {
+        const l = letterDeck.draw();
+        if (!l) return;
+        showSpark({ id: l.id, x: l.starX, y: l.starY, text: l.text, note: "моё послание" });
+      } else {
+        const m = dialogDeck.draw();
+        if (!m) return;
+        const n = dialogCount.current++;
+        showSpark({
+          id: DIALOG_ID_BASE + n,
+          ...dialogSpot(n),
+          text: m.text,
+          note: m.note ? `${m.date} · ${m.note}` : m.date,
+          voice: m.voice,
+        });
+      }
+    },
+    [projectorPlaying, takeNext, letterDeck, dialogDeck, dialogSpot, showSpark],
+  );
+
+  const onProjectorDone = useCallback(() => setProjectorPlaying(false), []);
+
+  const onKiss = useCallback(() => {
+    if (kissInFlight) return;
+    setKissInFlight(true);
+    setKissToken((t) => t + 1);
+    later(() => setKissInFlight(false), KISS_MS);
+  }, [kissInFlight, later]);
+
+  // Всё, что за вечер уже зажглось: отговорившие светятся ровным следом,
+  // говорящая прямо сейчас — на полную. Вечную лампу рендерер зажигает сам,
+  // из LAYOUT, и она не гаснет ни при каком свете.
   const skyLetters = useMemo(
     () =>
-      visible.map((l) => ({
+      lit.map((l) => ({
         id: l.id,
-        x: l.starX,
-        y: l.starY,
-        isEternal: l.isEternal,
-        opened: openedIds.includes(l.id),
+        x: l.x,
+        y: l.y,
+        isEternal: false,
+        opened: l.id !== spark?.id,
       })),
-    [visible, openedIds],
+    [lit, spark],
   );
 
-  const activate = useCallback((l: Letter) => {
-    if (l.special === "obsession") {
-      // Это не письмо: панель не открывается, звезда просто заходится.
-      setOpenId(null);
-      setObsessionId(l.id);
-      markOpened(l.id);
-      timers.current.push(window.setTimeout(() => setObsessionId(null), OBSESSION_MS));
-      return;
-    }
-    setObsessionId(null);
-    setHintId(null);
-    setOpenId(l.id);
-    markOpened(l.id);
-  }, []);
-
-  const close = useCallback(() => {
-    const current = openId;
-    setOpenId(null);
-    if (current === null) return;
-
-    // Ближайшая неоткрытая звезда на секунду разгорается ярче — тянет дальше.
-    // Получается тропинка через всё небо, но никто не заставляет.
-    const from = visible.find((l) => l.id === current);
-    if (!from) return;
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-    let best: Letter | null = null;
-    let bestDist = Infinity;
-    for (const l of speaking) {
-      if (l.id === current || openedIds.includes(l.id)) continue;
-      const dx = (l.starX - from.starX) * vw;
-      const dy = (l.starY - from.starY) * vh;
-      const d = dx * dx + dy * dy;
-      if (d < bestDist) {
-        bestDist = d;
-        best = l;
-      }
-    }
-    if (best) {
-      setHintId(best.id);
-      timers.current.push(window.setTimeout(() => setHintId(null), HINT_MS));
-    }
-  }, [openId, visible, speaking, openedIds]);
+  const busy = spark !== null || projectorPlaying;
 
   return (
     <>
       <Sky
-        days={days}
+        days={counter.nights}
         bearingDeg={settings.bearingDeg}
         observer={observer}
         letters={skyLetters}
-        chains={chains}
-        openId={openId}
-        hintId={hintId}
-        obsessionId={obsessionId}
-        birthNight={birthNight}
+        chains={[]}
+        openId={spark?.id ?? null}
+        hintId={null}
+        obsessionId={null}
+        birthNight={null}
         projectorImage={projector.image}
         projectorToken={projector.token}
         onProjectorDone={onProjectorDone}
-        cometToken={cometToken}
+        cometToken={kissToken}
         reducedMotion={reducedMotion}
       />
-      <Chronometer
-        counter={counter}
-        distanceKm={settings.distanceKm}
-        dimmed={openId !== null || projectorPlaying}
+
+      <Screens
+        index={screen}
+        onChange={setScreen}
+        home={
+          <HomeScreen
+            counter={counter}
+            settings={settings}
+            onKiss={onKiss}
+            onOpenSky={() => setScreen(1)}
+            kissInFlight={kissInFlight}
+          />
+        }
+        sky={
+          <SkyScreen
+            onSpark={onSpark}
+            busy={busy}
+            hint={hint ? HINT_TEXT : null}
+            onBack={() => setScreen(0)}
+          />
+        }
       />
-      <LetterField
-        letters={visible}
-        openId={openId}
-        obsessionId={obsessionId}
-        onActivate={activate}
-        onClose={close}
-        reducedMotion={reducedMotion}
-      />
-      {FEATURES.projector && <Projector onFire={fireProjector} playing={projectorPlaying} />}
-      <Message onSend={sendMessage} />
-      <Hints letters={visible} busy={openId !== null || projectorPlaying} showProjector={FEATURES.projector} />
-      {birthNight !== null && <BirthLabel night={birthNight} />}
-      <TitleDawn />
+
+      {spark && (
+        <SparkText
+          x={spark.x}
+          y={spark.y}
+          text={spark.text}
+          note={spark.note}
+          voice={spark.voice}
+          reducedMotion={reducedMotion}
+        />
+      )}
+
+      <TitleDawn bearingDeg={settings.bearingDeg} />
     </>
-  );
-}
-
-/**
- * Подпись к рождающейся звезде. Проступает, когда звезда уже разгорелась,
- * и тает вместе с её лишней яркостью.
- */
-function BirthLabel({ night }: { night: number }) {
-  const star = makeDayStar(night);
-  // У правого края подпись разворачивается влево, иначе уезжает за экран.
-  const toLeft = star.x > 0.72;
-
-  return (
-    <div
-      className="birth-label font-mono pointer-events-none fixed z-30 text-[11px] font-extralight tracking-[0.2em] whitespace-nowrap text-star/55"
-      style={{
-        left: `${star.x * 100}%`,
-        top: `${star.y * 100}%`,
-        transform: toLeft ? "translate(calc(-100% - 14px), -50%)" : "translate(14px, -50%)",
-      }}
-      aria-hidden="true"
-    >
-      ночь №{night}
-    </div>
   );
 }

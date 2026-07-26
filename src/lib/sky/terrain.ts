@@ -1,5 +1,5 @@
 import { FEATURES } from "../defaults";
-import { groundYAt, LAYOUT, projectorMetrics, ridgeYAt, PROJECTOR_BOX } from "./layout";
+import { groundYAt, projectorMetrics, PROJECTOR_BOX } from "./layout";
 import { withAlpha } from "./stars";
 
 /**
@@ -34,33 +34,19 @@ const HOUSES = [
 export function drawTerrain(ctx: CanvasRenderingContext2D, w: number, h: number) {
   ctx.save();
 
-  const steps = Math.max(160, Math.ceil(w / 2));
-  const silhouette = (yAt: (x: number) => number) => {
-    ctx.beginPath();
-    ctx.moveTo(0, h + 2);
-    for (let i = 0; i <= steps; i++) {
-      const t = i / steps;
-      ctx.lineTo(t * w, yAt(t) * h);
-    }
-    ctx.lineTo(w, h + 2);
-    ctx.closePath();
-    ctx.fill();
-  };
-
-  // Дальняя гряда — светлее ближней: воздух между планами съедает черноту.
-  // Без неё небо упирается в сплошной чёрный край и кадр становится плоским.
-  ctx.fillStyle = "#080C18";
-  silhouette(ridgeYAt);
-  // Дымка над дальней грядой — та же атмосфера, что глушит низкие звёзды.
-  const haze = ctx.createLinearGradient(0, (LAYOUT.groundY - 0.1) * h, 0, LAYOUT.groundY * h);
-  haze.addColorStop(0, "rgba(20,32,58,0)");
-  haze.addColorStop(1, "rgba(20,32,58,0.4)");
-  ctx.fillStyle = haze;
-  ctx.fillRect(0, (LAYOUT.groundY - 0.1) * h, w, h * 0.1);
-
-  // Ближний план: почти чёрный, с мелкой неровностью гребня.
+  // Профиль земли: частая выборка гауссиан, поэтому кривая гладкая
+  // и одновременно позволяет ставить объекты точно на склон.
   ctx.fillStyle = EARTH;
-  silhouette(groundYAt);
+  ctx.beginPath();
+  ctx.moveTo(0, h + 2);
+  const steps = Math.max(120, Math.ceil(w / 3));
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    ctx.lineTo(t * w, groundYAt(t) * h);
+  }
+  ctx.lineTo(w, h + 2);
+  ctx.closePath();
+  ctx.fill();
 
   for (const t of TREES) {
     const th = t.h * h;

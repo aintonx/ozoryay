@@ -86,7 +86,7 @@ export function drawProjector(
     (1 - easeOut(clamp01((e - HOLD_END) / (FADE_OUT - HOLD_END))));
 
   if (image && photoAlpha > 0.001) {
-    drawProjection(ctx, image, tip, discR * 0.92, photoAlpha);
+    drawProjection(ctx, image, tip, discR * 0.92, photoAlpha, lens);
   }
 }
 
@@ -209,6 +209,8 @@ function drawProjection(
   center: { x: number; y: number },
   R: number,
   alpha: number,
+  /** Откуда бьёт луч: задаёт наклон проекции. */
+  from: { x: number; y: number },
 ) {
   const D = Math.ceil(R * 2);
   const buf = photoScratch(D, D);
@@ -250,10 +252,70 @@ function drawProjection(
   ctx.fillRect(center.x - R * 1.5, center.y - R * 1.5, R * 3, R * 3);
   ctx.restore();
 
+  // Перспектива. Свет идёт снизу, от домика на холме, и падает на дымку под
+  // углом — значит и картинка обязана лечь под углом: дальний край уже и
+  // сжат, ближний шире и разрежен. Плоский круг посреди неба сразу выдаёт
+  // наклейку, а не проекцию.
+  //
+  // Наклон берём из направления самого луча: куда светит, туда и заваливается.
+  const dx = center.x - from.x;
+  const dy = center.y - from.y;
+  const tilt = Math.atan2(dx, -dy) * 0.42; // доля угла — полный слишком резок
+
   ctx.save();
   ctx.globalAlpha = alpha * 0.66;
-  ctx.drawImage(buf, center.x - R, center.y - R);
+  ctx.translate(center.x, center.y);
+  ctx.rotate(tilt);
+  drawKeystone(ctx, buf, D);
   ctx.restore();
+}
+
+/** Во сколько раз дальний край проекции уже ближнего. */
+const FAR_RATIO = 0.78;
+/** Общее сжатие по высоте: на плоскость смотрят не в упор. */
+const SQUASH = 0.88;
+/** Полос, на которые режется картинка. Больше — глаже, дороже незаметно. */
+const SLICES = 56;
+
+/**
+ * Трапеция вместо прямоугольника — то самое искажение, которое отличает
+ * проекцию от наклейки.
+ *
+ * Canvas 2D умеет только аффинные преобразования, а они не дают схождения:
+ * сдвиг и сжатие оставляют противоположные края одинаковой длины. Поэтому
+ * картинка режется на горизонтальные полосы, и каждая рисуется своей ширины —
+ * дальние уже, ближние шире. Выборка по строкам идёт не линейно, а по той же
+ * формуле, что даёт перспектива: у дальнего края на ту же полосу экрана
+ * приходится больше исходных пикселей.
+ *
+ * Собирается на отдельном офскрине при полной непрозрачности и только потом
+ * кладётся на небо целиком. Если рисовать полосы прямо на холсте, их нахлёст
+ * накладывается сам на себя и вместо картинки выходит гребёнка светлых линий.
+ */
+function drawKeystone(ctx: CanvasRenderingContext2D, buf: CanvasImageSource, D: number) {
+  const H = Math.ceil(D * SQUASH);
+  const out = warpScratch(D, H);
+  const g = out.getContext("2d")!;
+  g.globalCompositeOperation = "source-over";
+  g.filter = "none";
+  g.globalAlpha = 1;
+  g.clearRect(0, 0, D, H);
+
+  const step = H / SLICES;
+  // v — доля пути сверху вниз по экрану, u — доля по самой картинке.
+  const u = (v: number) => (v * FAR_RATIO) / (1 + v * (FAR_RATIO - 1));
+
+  for (let i = 0; i < SLICES; i++) {
+    const v0 = i / SLICES;
+    const v1 = (i + 1) / SLICES;
+    const su = u(v0) * D;
+    const sh = (u(v1) - u(v0)) * D;
+    const w = D * (FAR_RATIO + v0 * (1 - FAR_RATIO));
+    // Полоски перекрываются на пиксель: иначе между ними просвечивают швы.
+    g.drawImage(buf, 0, su, D, sh + 1, (D - w) / 2, v0 * H - 0.5, w, step + 1);
+  }
+
+  ctx.drawImage(out, -D / 2, -H / 2);
 }
 
 /**
@@ -274,4 +336,13 @@ function photoScratch(w: number, h: number): HTMLCanvasElement {
   if (photoCanvas.width !== w) photoCanvas.width = w;
   if (photoCanvas.height !== h) photoCanvas.height = h;
   return photoCanvas;
+}
+
+/** Третий офскрин — под перспективную развёртку. Свой, чтобы не затирать фото. */
+let warpCanvas: HTMLCanvasElement | null = null;
+function warpScratch(w: number, h: number): HTMLCanvasElement {
+  if (!warpCanvas) warpCanvas = document.createElement("canvas");
+  if (warpCanvas.width !== w) warpCanvas.width = w;
+  if (warpCanvas.height !== h) warpCanvas.height = h;
+  return warpCanvas;
 }

@@ -14,6 +14,10 @@
   --font-letter: var(--font-spectral), Georgia, serif;
   --font-text: var(--font-golos), system-ui, sans-serif;
   --font-mono: var(--font-jetbrains), ui-monospace, monospace;
+  /* Системный шрифт устройства: на её айфоне это SF Pro — тот же, что во всём
+     интерфейсе телефона. Виджеты должны звучать «системно». */
+  --font-system:
+    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
 
   /* Кривые и длительности движения. */
   --ease-emerge: cubic-bezier(0.16, 1, 0.3, 1);
@@ -98,63 +102,86 @@ body {
 }
 
 /*
- * Рассвет по контуру букв.
+ * Восходящее солнце.
  *
- * Нижний слой — те же слова, разлитые в свет: размытие делает из букв
- * зарево их собственной формы. Верхний слой — чёткие буквы поверх. Свет
- * восходит из-за надписи и гаснет вместе с ней.
+ * Диск и зарево — два слоя, оба центрированы ровно на линии земли: клип по
+ * силуэту холмов срезает нижнюю половину, и на экране остаётся купол,
+ * поднявшийся из-за хребта. Мягкость собрана в самих градиентах, без filter:
+ * blur — размытие на элементе в полтора экрана шириной стоит кадров на
+ * телефоне, а выглядит так же.
  */
-.title-halo {
+/*
+ * Зарево собрано из двух эллипсов, потому что рассвет так и устроен: у самой
+ * земли — узкая яркая полоса, а выше — слабый высокий отсвет на полнеба.
+ * Одним градиентом это не передать: он либо размажет свет серой пеленой,
+ * либо оборвётся у хребта.
+ */
+.dawn-glow {
   position: absolute;
-  inset: 0;
-  color: #ffd9a0;
-  filter: blur(15px) saturate(140%);
-  text-shadow:
-    0 0 26px rgba(242, 197, 124, 0.75),
-    0 -6px 40px rgba(255, 217, 160, 0.5);
+  width: min(230vw, 1900px);
+  height: 34vh;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(
+    ellipse at center,
+    rgba(255, 227, 176, 0.34) 0%,
+    rgba(242, 197, 124, 0.18) 26%,
+    rgba(242, 197, 124, 0.06) 52%,
+    rgba(242, 197, 124, 0) 80%
+  );
 }
 
+.dawn-halo {
+  position: absolute;
+  width: min(150vw, 1200px);
+  height: 62vh;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(
+    ellipse at center,
+    rgba(242, 197, 124, 0.1) 0%,
+    rgba(242, 197, 124, 0.042) 34%,
+    rgba(242, 197, 124, 0) 72%
+  );
+}
+
+/*
+ * Диск сидит почти целиком за хребтом: над землёй остаётся край, и края
+ * у него нет — граница растворяется в собственном свете. Резкий обод
+ * читался бы как восходящая луна, а не как начало рассвета.
+ */
+.dawn-sun {
+  position: absolute;
+  width: min(52vw, 270px);
+  aspect-ratio: 1;
+  transform: translate(-50%, -32%);
+  border-radius: 999px;
+  background: radial-gradient(
+    circle at center,
+    rgba(255, 227, 176, 0.7) 0%,
+    rgba(255, 227, 176, 0.52) 28%,
+    rgba(255, 227, 176, 0.28) 46%,
+    rgba(242, 197, 124, 0.11) 62%,
+    rgba(242, 197, 124, 0.03) 78%,
+    rgba(242, 197, 124, 0) 92%
+  );
+}
+
+/*
+ * Буквы стоят в свете, а не светятся сами: тёплый тон и лёгкая подсветка
+ * контура, чтобы строка читалась и на самом ярком месте зарева.
+ */
 .title-face {
-  position: relative;
-  color: #fbead0;
+  color: var(--color-amber-hot);
   text-shadow:
-    0 0 22px rgba(242, 197, 124, 0.3),
-    0 0 7px rgba(255, 227, 176, 0.28);
+    0 0 26px rgba(10, 14, 26, 0.55),
+    0 0 8px rgba(255, 227, 176, 0.35);
 }
 
 /*
- * Подпись к рождающейся звезде. Ждёт, пока звезда разгорится,
- * держится недолго и уходит вместе с её лишней яркостью.
+ * Виджеты выходят после заголовка: заголовок восходит в середине кадра,
+ * и панель, появившаяся раньше, спорила бы с ним за одно место.
+ * Заголовок живёт 10.2 с — виджеты ждут своей очереди.
  */
-@keyframes birth-label {
-  0% {
-    opacity: 0;
-    filter: blur(4px);
-  }
-  22% {
-    opacity: 1;
-    filter: blur(0);
-  }
-  64% {
-    opacity: 1;
-    filter: blur(0);
-  }
-  100% {
-    opacity: 0;
-    filter: blur(3px);
-  }
-}
-
-.birth-label {
-  animation: birth-label 4600ms var(--ease-emerge) 1600ms both;
-}
-
-/*
- * Хронометр выходит после заголовка: заголовок восходит в центре кадра,
- * и прибор, появившийся раньше, спорил бы с ним за одно место.
- * Заголовок живёт 10.2 с — прибор ждёт своей очереди.
- */
-.chrono {
+.home-in {
   animation: emerge 1100ms var(--ease-emerge) 10600ms both;
 }
 
@@ -193,101 +220,11 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.14);
 }
 
-/* Подпись прожектора: медленная пульсация вместо «(жми)», но читаемая. */
-@keyframes projector-label {
-  0%,
-  100% {
-    opacity: 0.62;
-  }
-  50% {
-    opacity: 1;
-  }
-}
-
-.projector-label {
-  animation: projector-label 3800ms ease-in-out infinite;
-}
-
-/* Подпись «написать в ночь»: та же спокойная пульсация, читаемая. */
-@keyframes soft-pulse {
-  0%,
-  100% {
-    opacity: 0.7;
-  }
-  50% {
-    opacity: 1;
-  }
-}
-
-.message-prompt {
-  animation: soft-pulse 4200ms ease-in-out infinite;
-}
-
-/*
- * Подсказки первого визита: слой мягко проявляется, круг чуть дышит.
- * Ничего резкого — они должны выглядеть частью ночи, а не интерфейсом.
- */
-.hint-layer {
-  animation: emerge 900ms var(--ease-emerge) both;
-}
-
-@keyframes hint-ring {
-  0%,
-  100% {
-    opacity: 0.45;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.9;
-    transform: scale(1.07);
-  }
-}
-
-.hint-ring {
-  animation: hint-ring 3200ms ease-in-out infinite;
-}
-
-/* Эхо обсессии: слово проступает и тает, не задерживаясь. */
-@keyframes obsession-echo {
-  0% {
-    opacity: 0;
-    filter: blur(6px);
-  }
-  22% {
-    opacity: 0.62;
-    filter: blur(0);
-  }
-  100% {
-    opacity: 0;
-    filter: blur(5px);
-  }
-}
-
-.obsession-echo {
-  animation: obsession-echo 1900ms var(--ease-emerge) both;
-}
-
 /* Фокус виден, но остаётся светом, а не рамкой интерфейса. */
 :focus-visible {
   outline: none;
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-amber-hot) 50%, transparent);
   border-radius: 4px;
-}
-
-/*
- * Зона нажатия у звезды — 44px, иначе в неё не попасть пальцем. Но кольцо
- * фокуса по её границе висело бы в небе обручем: оно садится на саму точку.
- */
-.star-hit:focus-visible {
-  box-shadow: none;
-}
-
-.star-hit:focus-visible::after {
-  content: "";
-  position: absolute;
-  inset: 13px;
-  border-radius: 999px;
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-amber-hot) 45%, transparent);
 }
 
 @media (prefers-reduced-motion: reduce) {

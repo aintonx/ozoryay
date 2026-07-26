@@ -109,18 +109,15 @@ export function drawComet(
     g.stroke();
   }
 
-  // Голова — мягкий ореол и небольшое ядро.
+  // Голова — не камень, а горящий поцелуй: ореол и в нём силуэт губ.
   const hr = Math.max(1.5, unit * 0.0045);
-  const glow = g.createRadialGradient(hx, hy, 0, hx, hy, hr * 8);
+  const glow = g.createRadialGradient(hx, hy, 0, hx, hy, hr * 9);
   glow.addColorStop(0, withAlpha(AMBER_HOT, 0.95));
   glow.addColorStop(0.22, withAlpha(AMBER, 0.42));
   glow.addColorStop(1, withAlpha(AMBER, 0));
   g.fillStyle = glow;
-  g.fillRect(hx - hr * 8, hy - hr * 8, hr * 16, hr * 16);
-  g.beginPath();
-  g.arc(hx, hy, hr * 0.8, 0, Math.PI * 2);
-  g.fillStyle = withAlpha(AMBER_HOT, 1);
-  g.fill();
+  g.fillRect(hx - hr * 9, hy - hr * 9, hr * 18, hr * 18);
+  drawKissMark(g, hx, hy, hr * 3.1);
   g.restore();
 
   ctx.save();
@@ -129,6 +126,33 @@ export function drawComet(
   ctx.filter = `blur(${blur}px)`;
   ctx.drawImage(buf, minX, minY);
   ctx.filter = "none";
+  ctx.restore();
+}
+
+/**
+ * Силуэт поцелуя — то, что летит вместо камня.
+ *
+ * Две дуги верхней губы с ложбинкой посередине и одна нижняя. На размере
+ * в несколько пикселей узнаётся именно как поцелуй, а не как пятно: всё
+ * держится на ложбинке сверху и на ширине формы.
+ */
+function drawKissMark(ctx: CanvasRenderingContext2D, x: number, y: number, r: number) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(r / 10, r / 10);
+
+  ctx.beginPath();
+  // Верхняя губа: от левого угла к ложбинке и к правому углу.
+  ctx.moveTo(-10, -1.4);
+  ctx.bezierCurveTo(-7.5, -7.4, -2.6, -7.4, 0, -2.4);
+  ctx.bezierCurveTo(2.6, -7.4, 7.5, -7.4, 10, -1.4);
+  // Нижняя губа — одной дугой обратно.
+  ctx.bezierCurveTo(7.6, 6.6, 2.8, 9.4, 0, 9.4);
+  ctx.bezierCurveTo(-2.8, 9.4, -7.6, 6.6, -10, -1.4);
+  ctx.closePath();
+
+  ctx.fillStyle = withAlpha(AMBER_HOT, 1);
+  ctx.fill();
   ctx.restore();
 }
 
