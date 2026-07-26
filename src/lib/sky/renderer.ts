@@ -1,8 +1,9 @@
 import { COMET_DURATION, drawComet } from "./comet";
 import { LAYOUT, glowXFromBearing, groundYAt } from "./layout";
+import { drawFaintStars, drawGroundHaze, drawMilkyWay } from "./milkyway";
 import { makeMoonSprite, moonPhase } from "./moon";
 import { drawProjector, PROJECTOR_TOTAL, type ProjectorImage } from "./projector";
-import { DayStar, makeDayStars, makeStarSprite, withAlpha } from "./stars";
+import { DayStar, makeDayStars, makeStarSprite, STAR_TINTS, withAlpha } from "./stars";
 import { drawTerrain } from "./terrain";
 
 export const PALETTE = {
@@ -121,7 +122,12 @@ export function createSky(canvas: HTMLCanvasElement, initial: SkyOptions): SkyHa
     cx.fillStyle = sky;
     cx.fillRect(0, 0, w, h);
 
+    // Млечный Путь и далёкая россыпь — фон для звёзд-дней, а не наложение.
+    drawMilkyWay(cx, w, h, PALETTE.star);
+    drawFaintStars(cx, w, h, groundYAt, STAR_TINTS);
     drawGlow(cx, w, h, glowXFromBearing(opts.bearingDeg), opts.days);
+    // Дымка у земли: воздух между небом и силуэтом.
+    drawGroundHaze(cx, w, h, LAYOUT.groundY * h, PALETTE.horizon);
     applyDither(cx);
     backdrop = c;
   }
@@ -148,14 +154,23 @@ export function createSky(canvas: HTMLCanvasElement, initial: SkyOptions): SkyHa
     // но ни одной ночи не выбрасываем.
     const scale = stars.length > 1200 ? Math.max(0.62, 1200 / stars.length) : 1;
 
+    // Спрайты на пересечении «яркость × оттенок». Пять оттенков дают небу
+    // живость, а восемь ступеней яркости — глубину; всё считается один раз.
     sprites = [];
     for (let i = 0; i < SPRITE_BUCKETS; i++) {
       const t = i / (SPRITE_BUCKETS - 1);
       const r = (STAR_R_MIN + t * (STAR_R_MAX - STAR_R_MIN)) * scale;
-      sprites.push(makeStarSprite(PALETTE.star, r, dpr));
+      // Лучики — только у верхних ступеней яркости, и то короткие.
+      const spikes = i >= SPRITE_BUCKETS - 2 ? (i === SPRITE_BUCKETS - 1 ? 9 : 6) : 0;
+      for (const tint of STAR_TINTS) sprites.push(makeStarSprite(tint, r, dpr, spikes));
     }
 
-    buckets = stars.map((s) => Math.min(SPRITE_BUCKETS - 1, Math.floor(s.mag * SPRITE_BUCKETS)));
+    const TINTS = STAR_TINTS.length;
+    buckets = stars.map((s) => {
+      const mag = Math.min(SPRITE_BUCKETS - 1, Math.floor(s.mag * SPRITE_BUCKETS));
+      const tint = Math.min(TINTS - 1, Math.floor(s.tint * TINTS));
+      return mag * TINTS + tint;
+    });
   }
 
   function resize() {
