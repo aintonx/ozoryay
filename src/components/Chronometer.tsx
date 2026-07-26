@@ -48,7 +48,7 @@ export default function Chronometer({ counter, distanceKm, dimmed }: Chronometer
 
   return (
     <div
-      className="pointer-events-none fixed inset-0 z-10 flex items-center justify-center transition-opacity"
+      className="pointer-events-none fixed inset-0 z-10 flex items-center justify-center pb-[9vh] transition-opacity"
       style={{
         opacity: dimmed ? 0.1 : 1,
         // Уходит быстрее, чем возвращается.
@@ -58,7 +58,10 @@ export default function Chronometer({ counter, distanceKm, dimmed }: Chronometer
     >
       {/* Прибор стоит чуть выше геометрического центра: под ним ещё живут
           подписи и прожектор на холме, и им нужен воздух. */}
-      <div className="chrono relative w-[min(64vw,17.5rem)] max-w-[52vh] -translate-y-[7%]">
+      <div className="chrono relative w-[min(66vw,17rem)] max-w-[46vh]">
+        {/* Стеклянный диск: небо за ним размывается, и прибор перестаёт
+            теряться на звёздах. */}
+        <div className="glass absolute inset-0 rounded-full" />
         <svg viewBox="-110 -110 220 220" className="w-full" aria-hidden="true">
           {/* Лотос: восемь лепестков из тонких линий. Раскрыт вверх — так его
               и рисуют, и так он не спорит с числом в сердцевине. */}
@@ -158,13 +161,15 @@ export default function Chronometer({ counter, distanceKm, dimmed }: Chronometer
           ))}
         </div>
 
-        {/* Расстояние — под всей композицией, на той же оси. */}
-        <div className="absolute inset-x-0 -bottom-[2.6em] text-center">
-          <div className="font-mono text-[clamp(12px,3.2vw,14px)] font-extralight tabular-nums text-star/72">
-            {spaceThousands(distanceKm)} км
-          </div>
-          <div className="font-text mt-[0.25em] text-[10px] leading-tight text-star/32">
-            от твоей нежности
+        {/* Расстояние — отдельной стеклянной капсулой под диском. */}
+        <div className="absolute inset-x-0 -bottom-[3.4em] flex justify-center">
+          <div className="glass flex items-baseline gap-[0.55em] rounded-full px-[1.1em] py-[0.5em]">
+            <span className="font-mono text-[clamp(12px,3.2vw,14px)] font-light tabular-nums text-star/90">
+              {spaceThousands(distanceKm)} км
+            </span>
+            <span className="font-text text-[10px] leading-none text-star/45">
+              от твоей нежности
+            </span>
           </div>
         </div>
       </div>

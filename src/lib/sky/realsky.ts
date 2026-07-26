@@ -29,19 +29,6 @@ export interface RealSkyView {
   at: Date;
 }
 
-/**
- * Созвездия, которые подписываем. Только те, что она узнает и сможет найти
- * глазами, — остальные пусть остаются просто звёздами.
- */
-const NAMED = new Set([
-  "Большая Медведица",
-  "Малая Медведица",
-  "Кассиопея",
-  "Орион",
-  "Лебедь",
-  "Лира",
-]);
-
 /** Яркость звезды из её величины: пятая величина едва видна, первая — сияет. */
 function magToAlpha(mag: number): number {
   return Math.max(0.1, Math.min(1, (5.4 - mag) / 5.2));
@@ -89,35 +76,15 @@ export function drawRealSky(
       if (Math.hypot(q.x - p.x, q.y - p.y) > maxLine) continue;
       // У горизонта воздух гасит свет — линии тают.
       const fade = Math.min(1, Math.min(p.alt, q.alt) / 22);
-      ctx.strokeStyle = withAlpha("#C9D6F0", 0.075 * fade);
+      ctx.strokeStyle = withAlpha("#C9D6F0", 0.05 * fade);
       ctx.beginPath();
       ctx.moveTo(p.x, p.y);
       ctx.lineTo(q.x, q.y);
       ctx.stroke();
     }
 
-    // Название — только у созвездий, стоящих высоко и целиком в кадре.
-    // Подписать все значит превратить небо в схему из учебника.
-    if (!NAMED.has(con.name)) continue;
-    let best = -1;
-    let bestMag = Infinity;
-    for (let i = 0; i < con.stars.length; i++) {
-      const p = pts[i];
-      if (!p.visible || p.alt < 26) continue;
-      // У краёв экрана подпись обрежется — пропускаем.
-      if (p.x < w * 0.16 || p.x > w * 0.84 || p.y < h * 0.1 || p.y > h * 0.62) continue;
-      if (con.stars[i].mag < bestMag) {
-        bestMag = con.stars[i].mag;
-        best = i;
-      }
-    }
-    if (best >= 0) {
-      const p = pts[best];
-      ctx.font = `${Math.max(8, unit * 0.0105)}px var(--font-jetbrains), ui-monospace, monospace`;
-      ctx.fillStyle = withAlpha("#C9D6F0", 0.13);
-      ctx.textAlign = "center";
-      ctx.fillText(con.name.toLowerCase(), p.x, p.y - unit * 0.03);
-    }
+    // Названия созвездий не подписываем: подписи объясняют небо, а не создают
+    // его, и превращают кадр в страницу атласа. Рисунок пусть угадывается.
   }
   ctx.restore();
 

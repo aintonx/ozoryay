@@ -25,3 +25,14 @@ export const SEED_SETTINGS = {
 };
 
 export type Settings = typeof SEED_SETTINGS;
+
+/**
+ * Что сейчас включено на сайте.
+ *
+ * Прожектор с фотографиями сделан и работает — код цел, фотографии на месте.
+ * Он просто выключен до времени: включить обратно значит поставить здесь
+ * `true`, ничего больше делать не придётся.
+ */
+export const FEATURES = {
+  projector: false,
+} as const;

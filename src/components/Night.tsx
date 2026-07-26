@@ -8,7 +8,7 @@ import Chronometer from "./Chronometer";
 import Projector from "./Projector";
 import Sky from "./Sky";
 import TitleDawn from "./TitleDawn";
-import type { Settings } from "@/lib/defaults";
+import { FEATURES, type Settings } from "@/lib/defaults";
 import type { ProjectorImage } from "@/lib/sky/projector";
 import { useMemories } from "@/lib/useMemories";
 import { speakingLetters, type Letter } from "@/lib/letters";
@@ -133,6 +133,7 @@ export default function Night({ settings, letters }: NightProps) {
   // При первом визите прожектор срабатывает сам — иначе половина гостей
   // не догадается кликнуть. Только один раз и не при reduced-motion.
   useEffect(() => {
+    if (!FEATURES.projector) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     try {
       if (localStorage.getItem(PROJECTOR_SEEN_KEY)) return;
@@ -241,9 +242,9 @@ export default function Night({ settings, letters }: NightProps) {
         onClose={close}
         reducedMotion={reducedMotion}
       />
-      <Projector onFire={fireProjector} playing={projectorPlaying} />
+      {FEATURES.projector && <Projector onFire={fireProjector} playing={projectorPlaying} />}
       <Message onSend={sendMessage} />
-      <Hints letters={visible} busy={openId !== null || projectorPlaying} />
+      <Hints letters={visible} busy={openId !== null || projectorPlaying} showProjector={FEATURES.projector} />
       {birthNight !== null && <BirthLabel night={birthNight} />}
       <TitleDawn />
     </>

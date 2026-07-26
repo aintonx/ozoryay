@@ -7,6 +7,18 @@ import { useReducedMotion } from "@/lib/useReducedMotion";
 const FULL_MS = 10200; // подъём + 5с + уход, с запасом на снятие
 const REDUCED_MS = 5600;
 
+const TEXT = "Ты озоряешь мою жизнь, принцесса";
+
+/** Общая типографика обоих слоёв: контур свечения обязан совпасть с буквами. */
+const titleType: React.CSSProperties = {
+  margin: 0,
+  fontWeight: 400,
+  lineHeight: 1.16,
+  letterSpacing: "0.01em",
+  fontSize: "clamp(30px, 8vw, 62px)",
+  textWrap: "balance",
+};
+
 /**
  * Заголовок-рассвет. При открытии «ты озоряешь мою жизнь, принцесса» восходит
  * из-за линии холмов, как почти зарождающийся рассвет, держится пять секунд и
@@ -46,37 +58,29 @@ export default function TitleDawn() {
       style={{ clipPath: skyClip, WebkitClipPath: skyClip }}
       aria-hidden="true"
     >
-      {/* Тёплое зарево у горизонта — «почти» рассвет. */}
-      <div
-        className={reduced ? undefined : "title-dawn-glow"}
-        style={{
-          position: "absolute",
-          inset: 0,
-          opacity: reduced ? 0.16 : undefined,
-          background:
-            "radial-gradient(130% 62% at 50% 84%, rgba(242,197,124,0.17), rgba(242,197,124,0.05) 34%, transparent 62%)",
-        }}
-      />
-
-      <div
-        className="absolute left-1/2 top-[64%] w-full max-w-[36rem] -translate-x-1/2 -translate-y-1/2 px-7 text-center"
-      >
-        <h1
-          className={reduced ? "font-display" : "title-dawn font-display"}
-          style={{
-            margin: 0,
-            fontWeight: 400,
-            lineHeight: 1.16,
-            letterSpacing: "0.01em",
-            fontSize: "clamp(30px, 8vw, 62px)",
-            color: "#FBEAD0",
-            textShadow: "0 0 34px rgba(242,197,124,0.28), 0 0 10px rgba(255,227,176,0.22)",
-            textWrap: "balance",
-            opacity: reduced ? 1 : undefined,
-          }}
-        >
-          Ты озоряешь мою жизнь, принцесса
-        </h1>
+      <div className="absolute left-1/2 top-[64%] w-full max-w-[36rem] -translate-x-1/2 -translate-y-1/2 px-7 text-center">
+        {/*
+          Рассвет случается по самим буквам.
+          Свет идёт из-за надписи, поэтому зарево повторяет её контур: нижний
+          слой — те же слова, размытые в свечение, верхний — чёткие буквы
+          поверх. Так свет разливается ровно по линии букв, как солнце из-за
+          горного хребта, а не абстрактным пятном.
+        */}
+        <div className="relative">
+          <h1
+            className={`title-halo font-display ${reduced ? "" : "title-dawn"}`}
+            aria-hidden="true"
+            style={{ ...titleType, opacity: reduced ? 0.85 : undefined }}
+          >
+            {TEXT}
+          </h1>
+          <h1
+            className={`title-face font-display ${reduced ? "" : "title-dawn"}`}
+            style={{ ...titleType, opacity: reduced ? 1 : undefined }}
+          >
+            {TEXT}
+          </h1>
+        </div>
       </div>
     </div>
   );

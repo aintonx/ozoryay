@@ -14,6 +14,8 @@ interface HintsProps {
   letters: Letter[];
   /** Пока раскрыто письмо или горит прожектор — подсказки не мешают. */
   busy: boolean;
+  /** Прожектор выключен — вторая подсказка не нужна. */
+  showProjector: boolean;
 }
 
 /**
@@ -24,7 +26,7 @@ interface HintsProps {
  * нему. Появляются один раз в жизни (флаг в localStorage), сами тают,
  * исчезают от любого касания и не показываются при reduced-motion.
  */
-export default function Hints({ letters, busy }: HintsProps) {
+export default function Hints({ letters, busy, showProjector }: HintsProps) {
   const reduced = useReducedMotion();
   const [step, setStep] = useState(-1); // -1 — ещё не начали, 2 — закончили
   const [vp, setVp] = useState({ w: 0, h: 0 });
@@ -44,13 +46,14 @@ export default function Hints({ letters, busy }: HintsProps) {
     } catch {
       return; // приватный режим — просто не показываем
     }
+    const last = showProjector ? 2 : 1;
     const timers = [
       window.setTimeout(() => setStep(0), START_MS),
-      window.setTimeout(() => setStep(1), START_MS + STEP_MS),
-      window.setTimeout(() => setStep(2), START_MS + STEP_MS * 2),
+      ...(showProjector ? [window.setTimeout(() => setStep(1), START_MS + STEP_MS)] : []),
+      window.setTimeout(() => setStep(last), START_MS + STEP_MS * last),
     ];
     return () => timers.forEach(clearTimeout);
-  }, [reduced]);
+  }, [reduced, showProjector]);
 
   // Любое касание экрана — подсказки уходят: она уже разобралась.
   useEffect(() => {
