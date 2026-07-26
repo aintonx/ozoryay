@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import Hints from "./Hints";
 import LetterField from "./LetterField";
 import Message from "./Message";
-import Overlay from "./Overlay";
+import Chronometer from "./Chronometer";
 import Projector from "./Projector";
 import Sky from "./Sky";
 import TitleDawn from "./TitleDawn";
@@ -45,7 +45,9 @@ interface NightProps {
 export default function Night({ settings, letters }: NightProps) {
   // Единственный счётчик на всю страницу: и небу (сколько звёзд), и надписям.
   const counter = useSeparationCounter(settings.separationStart, settings.herTimezone);
-  const days = counter.days;
+  // Небо растёт по календарным ночам её пояса: звезда рождается
+  // в её полночь, а не в час расставания.
+  const days = counter.nights;
 
   // Откуда смотрим на небо: её город, а если она разрешит — её настоящее место.
   const observer = useObserver({
@@ -226,7 +228,7 @@ export default function Night({ settings, letters }: NightProps) {
         cometToken={cometToken}
         reducedMotion={reducedMotion}
       />
-      <Overlay
+      <Chronometer
         counter={counter}
         distanceKm={settings.distanceKm}
         dimmed={openId !== null || projectorPlaying}

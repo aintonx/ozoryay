@@ -1,27 +1,28 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { clockInTz, separationDays, type Clock } from "./days";
+import { elapsedMs, elapsedSince, separationDays, type Elapsed } from "./days";
 
 const RESYNC_MS = 5 * 60 * 1000;
 const TICK_MS = 1000;
 
-export interface SeparationCounter extends Clock {
-  days: number;
+export interface SeparationCounter extends Elapsed {
+  /**
+   * Календарные ночи в её поясе — по ним растёт небо. Считаются отдельно от
+   * `days`: звезда рождается в её полночь, а не в час расставания.
+   */
+  nights: number;
 }
 
 /**
  * Счётчик разлуки, который не имеет права соврать.
  *
- * Начальные значения приходят с сервера уже посчитанными, поэтому при загрузке
- * не мигают нули и нет сдвига вёрстки. Дальше клиент один раз снимает офсет
- * относительно серверных часов и тикает локально каждую секунду,
- * пересинхронизируясь раз в пять минут и при каждом возврате на вкладку.
+ * Тикает от самой минуты расставания: дни, часы, минуты, секунды. Время
+ * берётся у сервера (заголовок `Date` в ответе), а не у часов устройства —
+ * у половины телефонов они сбиты.
  *
- * Дни только растут: если её часовой пояс сменится на западный, календарная
- * дата может откатиться назад — но разлука не может стать короче. Часы, минуты
- * и секунды — её текущее время суток; в её полночь всё обнуляется, а день
- * прибавляется.
+ * Значение только растёт. Достигнутый максимум хранится в миллисекундах и
+ * переживает любые поправки часов: разлука не может стать короче.
  */
 export function useSeparationCounter(
   separationStartISO: string,
@@ -33,15 +34,12 @@ export function useSeparationCounter(
     compute(separationStartISO, tz, new Date(), 0),
   );
   const offset = useRef(0); // серверное время минус местное
-  const peakDays = useRef(counter.days);
+  const peakMs = useRef(elapsedMs(separationStartISO, new Date()));
 
   useEffect(() => {
     let alive = true;
 
     /**
-     * Время берём у сервера, а не у устройства: у части телефонов часы сбиты
-     * на минуты, а то и на сутки, и счётчик соврал бы.
-     *
      * Сайт статический, своего эндпоинта нет — поэтому спрашиваем время у
      * самого хостинга: в каждом HTTP-ответе есть служебный заголовок `Date`
      * с временем сервера. Достаточно лёгкого HEAD-запроса без тела.
@@ -49,7 +47,6 @@ export function useSeparationCounter(
     async function sync() {
       const sent = Date.now();
       try {
-        // Спрашиваем саму страницу: она есть всегда, а HEAD не тянет тело.
         const res = await fetch(`./?t=${sent}`, { method: "HEAD", cache: "no-store" });
         const header = res.headers.get("date");
         if (header) {
@@ -67,9 +64,9 @@ export function useSeparationCounter(
     }
 
     function recompute() {
-      const next = compute(separationStartISO, tz, new Date(Date.now() + offset.current), peakDays.current);
-      peakDays.current = next.days;
-      setCounter(next);
+      const now = new Date(Date.now() + offset.current);
+      peakMs.current = Math.max(peakMs.current, elapsedMs(separationStartISO, now));
+      setCounter(compute(separationStartISO, tz, now, peakMs.current));
     }
 
     function onVisible() {
@@ -92,15 +89,14 @@ export function useSeparationCounter(
   return counter;
 }
 
-/** Дни разлуки и её время суток на заданный момент. */
 function compute(
   separationStartISO: string,
   tz: string,
   at: Date,
-  floorDays: number,
+  floorMs: number,
 ): SeparationCounter {
   return {
-    days: separationDays(separationStartISO, tz, at, floorDays),
-    ...clockInTz(at, tz),
+    ...elapsedSince(separationStartISO, at, floorMs),
+    nights: separationDays(separationStartISO, tz, at),
   };
 }

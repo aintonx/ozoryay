@@ -15,28 +15,35 @@ export function civilDateInTz(at: Date, tz: string): [number, number, number] {
   return [y, m, d];
 }
 
-export interface Clock {
+export interface Elapsed {
+  days: number;
   hours: number;
   minutes: number;
   seconds: number;
 }
 
 /**
- * Её текущее время суток — часы, минуты, секунды. Спутник календарных дней:
- * в её полночь всё обнуляется, а день прибавляется, и пара «дни + время»
- * тикает вперёд, перекатываясь через полночь.
+ * Сколько прошло с начала разлуки: дни, часы, минуты, секунды.
+ *
+ * Именно прошедшее время, а не текущее время суток — отсчёт идёт от самой
+ * минуты расставания. Значение только растёт: `floorMs` держит достигнутый
+ * максимум, потому что разлука не может стать короче ни при каких поправках
+ * часов и часовых поясов.
  */
-export function clockInTz(at: Date, tz: string): Clock {
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: tz,
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  }).formatToParts(at);
-  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
-  // en-GB может вернуть час "24" в полночь — приводим к 0.
-  return { hours: get("hour") % 24, minutes: get("minute"), seconds: get("second") };
+export function elapsedSince(separationStartISO: string, now: Date, floorMs = 0): Elapsed {
+  const ms = Math.max(elapsedMs(separationStartISO, now), floorMs);
+
+  return {
+    days: Math.floor(ms / 86400000),
+    hours: Math.floor(ms / 3600000) % 24,
+    minutes: Math.floor(ms / 60000) % 60,
+    seconds: Math.floor(ms / 1000) % 60,
+  };
+}
+
+/** Прошедшие миллисекунды — в этом виде удобно хранить достигнутый максимум. */
+export function elapsedMs(separationStartISO: string, now: Date): number {
+  return Math.max(0, now.getTime() - new Date(separationStartISO).getTime());
 }
 
 /** Разница календарных дат в сутках. */

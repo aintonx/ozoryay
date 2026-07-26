@@ -144,6 +144,11 @@ body {
   animation: birth-label 4600ms var(--ease-emerge) 1600ms both;
 }
 
+/* Хронометр проявляется первым, как приборы при запуске. */
+.chrono {
+  animation: emerge 900ms var(--ease-emerge) 500ms both;
+}
+
 /* Подпись прожектора: медленная пульсация вместо «(жми)», но читаемая. */
 @keyframes projector-label {
   0%,
