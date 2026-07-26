@@ -11,7 +11,7 @@ import TitleDawn from "./TitleDawn";
 import type { Settings } from "@/lib/defaults";
 import type { ProjectorImage } from "@/lib/sky/projector";
 import { useMemories } from "@/lib/useMemories";
-import { miniConstellations, speakingLetters, type Letter } from "@/lib/letters";
+import { speakingLetters, type Letter } from "@/lib/letters";
 import {
   getOpenedServerSnapshot,
   getOpenedSnapshot,
@@ -20,6 +20,7 @@ import {
 } from "@/lib/openedStore";
 import { makeDayStar } from "@/lib/sky/stars";
 import { useSeparationCounter } from "@/lib/time/useSeparationDays";
+import { useObserver } from "@/lib/useObserver";
 import { useReducedMotion } from "@/lib/useReducedMotion";
 
 const NIGHT_KEY = "ozoryay.lastNight";
@@ -45,6 +46,13 @@ export default function Night({ settings, letters }: NightProps) {
   // Единственный счётчик на всю страницу: и небу (сколько звёзд), и надписям.
   const counter = useSeparationCounter(settings.separationStart, settings.herTimezone);
   const days = counter.days;
+
+  // Откуда смотрим на небо: её город, а если она разрешит — её настоящее место.
+  const observer = useObserver({
+    lat: settings.herLat,
+    lon: settings.herLon,
+    city: settings.herCity,
+  });
   const [openId, setOpenId] = useState<number | null>(null);
   const [hintId, setHintId] = useState<number | null>(null);
   const [obsessionId, setObsessionId] = useState<number | null>(null);
@@ -139,7 +147,10 @@ export default function Night({ settings, letters }: NightProps) {
     [letters],
   );
   const speaking = useMemo(() => speakingLetters(letters), [letters]);
-  const chains = useMemo(() => miniConstellations(letters), [letters]);
+  // Своих линий между письмами больше нет: рисунок небу теперь дают
+  // настоящие созвездия, а вторая сетка поверх них — шум. Письма и так
+  // отличаются теплом.
+  const chains = useMemo<Array<Array<{ x: number; y: number }>>>(() => [], []);
 
   const skyLetters = useMemo(
     () =>
@@ -202,6 +213,7 @@ export default function Night({ settings, letters }: NightProps) {
       <Sky
         days={days}
         bearingDeg={settings.bearingDeg}
+        observer={observer}
         letters={skyLetters}
         chains={chains}
         openId={openId}

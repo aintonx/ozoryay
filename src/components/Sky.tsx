@@ -3,10 +3,12 @@
 import { useEffect, useRef } from "react";
 import { createSky, type LetterStar, type SkyHandle } from "@/lib/sky/renderer";
 import type { ProjectorImage } from "@/lib/sky/projector";
+import type { Observer } from "@/lib/sky/realsky";
 
 export interface SkyProps {
   days: number;
   bearingDeg: number;
+  observer: Observer;
   letters: LetterStar[];
   chains: Array<Array<{ x: number; y: number }>>;
   openId: number | null;

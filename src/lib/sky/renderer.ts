@@ -1,7 +1,8 @@
 import { COMET_DURATION, drawComet } from "./comet";
 import { LAYOUT, glowXFromBearing, groundYAt } from "./layout";
 import { drawFaintStars, drawGroundHaze, drawMilkyWay } from "./milkyway";
-import { makeMoonSprite, moonPhase } from "./moon";
+import { makeMoonSprite } from "./moon";
+import { drawRealSky, moonOnScreen, type Observer, type RealSkyView } from "./realsky";
 import { drawProjector, PROJECTOR_TOTAL, type ProjectorImage } from "./projector";
 import { DayStar, makeDayStars, makeStarSprite, STAR_TINTS, withAlpha } from "./stars";
 import { drawTerrain } from "./terrain";
@@ -34,6 +35,8 @@ export interface SkyOptions {
   days: number;
   bearingDeg: number;
   reducedMotion: boolean;
+  /** Откуда смотрят на небо: от этого зависит, какие созвездия видны. */
+  observer: Observer;
   letters: LetterStar[];
   /** Цепочки координат для линий созвездия. */
   chains: Array<Array<{ x: number; y: number }>>;
@@ -86,6 +89,13 @@ export function createSky(canvas: HTMLCanvasElement, initial: SkyOptions): SkyHa
   let ground: HTMLCanvasElement | null = null; // силуэт с прожектором
   let moon: HTMLCanvasElement | null = null;
   let moonR = 0;
+  let moonIllum = -1; // фаза, под которую собран спрайт
+
+  // Настоящее небо: созвездия над её городом. Слой пересобирается раз в
+  // полминуты — за это время небо поворачивается на четверть градуса.
+  let realSky: HTMLCanvasElement | null = null;
+  let realSkyAt = -Infinity;
+  const REAL_SKY_REFRESH_MS = 30000;
 
   let raf = 0;
   const start = performance.now();
@@ -138,13 +148,30 @@ export function createSky(canvas: HTMLCanvasElement, initial: SkyOptions): SkyHa
     ground = c;
   }
 
-  function buildMoon() {
+  /** Вид неба на текущий момент — из настроек наблюдателя. */
+  function view(): RealSkyView {
+    return { bearing: opts.bearingDeg, observer: opts.observer, at: new Date() };
+  }
+
+  function buildRealSky(now: number) {
+    const [c, cx] = layer();
+    drawRealSky(cx, w, h, view());
+    realSky = c;
+    realSkyAt = now;
+  }
+
+  /**
+   * Спрайт Луны. Пересобирается только когда заметно изменилась фаза —
+   * положение на небе считается каждый кадр отдельно и стоит копейки.
+   */
+  function buildMoon(illum: number, waxing: boolean) {
     // Считать от min(w,h) нельзя: на телефоне это ширина, и луна выходит
     // радиусом в 13px — фазу на таком размере не разглядеть, а фаза здесь
     // единственный честный образ. Ограничиваем обе стороны по отдельности:
     // ширина держит размер на телефоне, высота — на низком окне.
     moonR = Math.max(18, Math.min(34, w * 0.068, h * 0.055));
-    moon = makeMoonSprite(moonPhase(new Date()), moonR, PALETTE.star, dpr);
+    moon = makeMoonSprite({ age: 0, illum, waxing }, moonR, PALETTE.star, dpr);
+    moonIllum = illum;
   }
 
   function buildStars() {
@@ -191,7 +218,8 @@ export function createSky(canvas: HTMLCanvasElement, initial: SkyOptions): SkyHa
     buildStars();
     buildBackdrop();
     buildGround();
-    buildMoon();
+    buildRealSky(performance.now());
+    moonIllum = -1; // спрайт пересоберётся в кадре под новый размер
   }
 
   function frame(now: number) {
@@ -233,6 +261,12 @@ export function createSky(canvas: HTMLCanvasElement, initial: SkyOptions): SkyHa
 
     if (backdrop) ctx.drawImage(backdrop, 0, 0, w, h);
 
+    // Настоящее небо над её городом: созвездия в том положении, в каком они
+    // стоят прямо сейчас. Слой обновляется раз в полминуты — небо за это
+    // время поворачивается на четверть градуса.
+    if (now - realSkyAt > REAL_SKY_REFRESH_MS) buildRealSky(now);
+    if (realSky) ctx.drawImage(realSky, 0, 0, w, h);
+
     // Свет рождения. Без него событие зависит от того, какая звезда выпала:
     // у слабой величины даже тройная яркость — это точка в полпикселя,
     // и рождение проходит незамеченным.
@@ -273,9 +307,21 @@ export function createSky(canvas: HTMLCanvasElement, initial: SkyOptions): SkyHa
       drawLetterStar(ctx, w, h, l, t, opts, 1);
     }
 
-    if (moon) {
-      const size = moon.width / dpr;
-      ctx.drawImage(moon, LAYOUT.moon.x * w - size / 2, LAYOUT.moon.y * h - size / 2, size, size);
+    // Луна стоит там, где она на самом деле сейчас над её городом: восходит,
+    // идёт по небу, садится за холмы. Иногда её просто нет — она под землёй,
+    // и это честно.
+    const mp = moonOnScreen(w, h, view());
+    if (mp) {
+      if (moonIllum < 0 || Math.abs(mp.illum - moonIllum) > 0.01) {
+        buildMoon(mp.illum, mp.waxing);
+      }
+      if (moon) {
+        const size = moon.width / dpr;
+        // У горизонта воздух глушит свет — луна там тусклее и рыжее.
+        ctx.globalAlpha = Math.max(0.35, Math.min(1, 0.45 + mp.alt / 22));
+        ctx.drawImage(moon, mp.x - size / 2, mp.y - size / 2, size, size);
+        ctx.globalAlpha = 1;
+      }
     }
 
     // Комета — до силуэта земли: у горизонта её скрывают холмы, и она уходит

@@ -17,11 +17,6 @@ interface OverlayProps {
 const T_TIMER = 900;
 const T_DISTANCE = 1500;
 
-/** Оценка радиуса луны на экране — та же формула, что в рендерере. */
-function moonRadius(w: number, h: number) {
-  return Math.max(18, Math.min(w * 0.068, h * 0.055, 34));
-}
-
 /** Ведущий ноль: время должно быть приборным, 04:07:09, а не 4:7:9. */
 function pad2(n: number): string {
   return String(n).padStart(2, "0");
@@ -44,15 +39,16 @@ export default function Overlay({ counter, distanceKm, dimmed }: OverlayProps) {
   }, []);
 
   const ready = vp.w > 0;
-  const moonCx = LAYOUT.moon.x * vp.w;
+  // Надписи стоят по краям от центра экрана, а не от луны: луна теперь живёт
+  // по-настоящему — восходит, садится, а иногда её вовсе нет под горизонтом.
+  // Привязывать к ней вёрстку значит однажды остаться с пустотой посередине.
+  const centerX = vp.w / 2;
   const moonCy = LAYOUT.moon.y * vp.h;
-  const r = ready ? moonRadius(vp.w, vp.h) : 0;
-  const gap = r * 1.5 + 8;
+  const gap = Math.max(34, vp.w * 0.1);
   const margin = 18;
 
-  // Таймер слева от луны, прижат к ней справа. «Км» справа, прижата слева.
-  const timerRight = Math.max(80, vp.w - (moonCx - gap));
-  const distLeft = Math.max(0, moonCx + gap);
+  const timerRight = Math.max(80, vp.w - (centerX - gap));
+  const distLeft = Math.max(0, centerX + gap);
 
   return (
     // Слой не перехватывает указатель: клики уходят сквозь него к звёздам.
@@ -75,7 +71,7 @@ export default function Overlay({ counter, distanceKm, dimmed }: OverlayProps) {
               right: timerRight,
               top: moonCy,
               transform: "translateY(-50%)",
-              maxWidth: `${moonCx - gap - margin}px`,
+              maxWidth: `${centerX - gap - margin}px`,
             }}
           >
             <span className="font-mono text-[clamp(14px,3.8vw,18px)] font-extralight tabular-nums leading-none">
