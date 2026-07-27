@@ -86,5 +86,37 @@
   {
     "src": "memories/memory-22.jpg",
     "kind": "image"
+  },
+  {
+    "src": "memories/video (333).mp4",
+    "kind": "video"
+  },
+  {
+    "src": "memories/video (364).mp4",
+    "kind": "video"
+  },
+  {
+    "src": "memories/video (406).mp4",
+    "kind": "video"
+  },
+  {
+    "src": "memories/video (413).mp4",
+    "kind": "video"
+  },
+  {
+    "src": "memories/video (420).mp4",
+    "kind": "video"
+  },
+  {
+    "src": "memories/video (483).mp4",
+    "kind": "video"
+  },
+  {
+    "src": "memories/video (484).mp4",
+    "kind": "video"
+  },
+  {
+    "src": "memories/video (548).mp4",
+    "kind": "video"
   }
 ]
