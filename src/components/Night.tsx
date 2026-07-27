@@ -30,8 +30,8 @@ const SPARK_MS = 9000;
 const HANDOVER_MS = 460;
 /** Сколько висит подсказка. */
 const HINT_MS = 5600;
-/** Пока летит поцелуй, кнопка ждёт. */
-const KISS_MS = 2600;
+/** Пока летит поцелуй, кнопка ждёт. Чуть дольше самого полёта. */
+const KISS_MS = 3000;
 /** Реплики диалога получают номера отсюда — чтобы не путались с письмами. */
 const DIALOG_ID_BASE = 1000;
 /** Сколько отговоривших звёзд остаётся гореть, прежде чем самые старые гаснут. */
@@ -345,7 +345,7 @@ export default function Night({ settings, letters }: NightProps) {
         open={showing}
         onDismiss={dismiss}
         onNext={next}
-        nextLabel={projectorPlaying ? "следующее фото" : "дальше"}
+        nextLabel="дальше"
       />
 
       {/* Снимает себя сам: свет уже пошёл на убыль, а строка ещё уезжает. */}

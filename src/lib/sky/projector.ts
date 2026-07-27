@@ -20,11 +20,27 @@ export interface ProjectorImage {
   h: number;
 }
 
-/** Куда бьёт луч. Небольшая дуга в верхней части неба, левее центра. */
+/**
+ * Куда бьёт луч. Небольшая дуга в верхней части неба, левее центра.
+ *
+ * Пятно стоит ниже, чем стояло раньше: круг вырос вдвое, и на прежней
+ * высоте он упирался бы верхним краем в край экрана на широких мониторах.
+ */
 function target(w: number, h: number, sweep: number) {
   const x = (0.44 + 0.12 * sweep) * w;
-  const y = (0.26 - 0.015 * sweep) * h;
+  const y = (0.34 - 0.015 * sweep) * h;
   return { x, y };
+}
+
+/**
+ * Радиус светового круга.
+ *
+ * Считается от меньшей стороны, но не может подняться выше собственной
+ * высоты на экране: иначе на широком мониторе круг вылезал бы за верхний
+ * край, а обрезанный круг света сразу перестаёт быть кругом света.
+ */
+function discRadius(w: number, h: number, targetY: number) {
+  return Math.min(Math.min(w, h) * 0.4, targetY * 0.85);
 }
 
 function easeOut(x: number): number {
@@ -84,7 +100,9 @@ export function drawProjector(
     y: lens.y + (tip.y - lens.y) * beamLen,
   };
 
-  const discR = Math.min(w, h) * 0.2;
+  // Радиус круга и полуширина луча на его конце — одно и то же число:
+  // свет не может быть уже пятна, которое он рисует, и не должен быть шире.
+  const discR = discRadius(w, h, tgt.y) * 0.92;
 
   // Луч, потом яркое ядро на самой линзе. Ядро рисуется после луча и поверх
   // него: свет должен рождаться из линзы, а не начинаться где-то в воздухе.
@@ -98,7 +116,7 @@ export function drawProjector(
     collapse;
 
   if (image && photoAlpha > 0.001) {
-    drawProjection(ctx, image, tip, discR * 0.92, photoAlpha);
+    drawProjection(ctx, image, tip, discR, photoAlpha);
   }
 }
 

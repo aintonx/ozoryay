@@ -401,7 +401,7 @@ export function createSky(canvas: HTMLCanvasElement, initial: SkyOptions): SkyHa
     // Комета — до силуэта земли: у горизонта её скрывают холмы, и она уходит
     // за них, а не гаснет в воздухе.
     if (cometE >= 0 && cometE <= COMET_DURATION) {
-      drawComet(ctx, w, h, cometE, opts.bearingDeg);
+      drawComet(ctx, w, h, cometE, opts.bearingDeg, cometToken);
     }
 
     // Восход — после звёзд и до земли. Солнце гасит собой звёзды, а деревья
