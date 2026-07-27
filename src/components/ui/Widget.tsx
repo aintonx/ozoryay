@@ -73,7 +73,10 @@ export function WidgetButton({
         onClick();
       }}
       disabled={disabled}
-      className={`glass group flex w-full rounded-[1.55rem] p-[1.05rem] text-left transition-all duration-300 active:scale-[0.985] disabled:pointer-events-none disabled:opacity-35 ${
+      // Прозрачность самой карточки не трогаем ни при каком состоянии:
+      // у стекла от неё пропадает размытие и оно возвращается рывком.
+      // Гаснет только содержимое.
+      className={`glass group flex w-full rounded-[1.55rem] p-[1.05rem] text-left transition-transform duration-300 active:scale-[0.985] disabled:pointer-events-none ${
         tile
           ? // Плитка — формат телефона. На широком экране места хватает, и она
             // разворачивается в ту же строку, что и все остальные карточки.
@@ -81,10 +84,14 @@ export function WidgetButton({
           : "items-center gap-[0.85rem]"
       } ${className}`}
     >
-      <span className="flex h-[2.1rem] w-[2.1rem] shrink-0 items-center justify-center rounded-full bg-amber/12 text-[1.05rem] text-amber/90 transition-colors group-hover:bg-amber/18">
+      <span className="flex h-[2.1rem] w-[2.1rem] shrink-0 items-center justify-center rounded-full bg-amber/12 text-[1.05rem] text-amber/90 transition-opacity duration-300 group-hover:bg-amber/18 group-disabled:opacity-40">
         {icon}
       </span>
-      <span className={tile ? "block sm:min-w-0 sm:flex-1" : "min-w-0 flex-1"}>
+      <span
+        className={`transition-opacity duration-300 group-disabled:opacity-45 ${
+          tile ? "block sm:min-w-0 sm:flex-1" : "min-w-0 flex-1"
+        }`}
+      >
         <span className="font-system block text-[13.5px] leading-tight font-medium text-star/92">
           {label}
         </span>

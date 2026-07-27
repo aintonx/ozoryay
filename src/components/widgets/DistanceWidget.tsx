@@ -1,8 +1,25 @@
 "use client";
 
 import { Widget } from "../ui/Widget";
-import { IconPin } from "../ui/Icons";
+import { IconMarker, IconPin } from "../ui/Icons";
 import { spaceThousands } from "@/lib/text/plural";
+
+/**
+ * Метка на конце маршрута.
+ *
+ * Позиция в процентах повторяет концы дуги из соседнего svg (14 и 186 из
+ * 200 — это 7% и 93%), поэтому метка стоит ровно там, где обрывается
+ * пунктир, на какой бы ширине ни оказался виджет.
+ */
+function Marker({ at, className }: { at: number; className: string }) {
+  return (
+    <IconMarker
+      size={18}
+      className={`absolute bottom-0 -translate-x-1/2 translate-y-[0.15rem] ${className}`}
+      style={{ left: `${at}%` }}
+    />
+  );
+}
 
 interface DistanceWidgetProps {
   distanceKm: number;
@@ -33,31 +50,37 @@ export default function DistanceWidget({
         <span className="font-system text-[13px] text-star/50">км</span>
       </div>
 
-      {/* Маршрут: дуга от моего города к твоему. Высота задана жёстко —
-          иначе на широком виджете диаграмма растёт вслед за шириной
-          и занимает пол-карточки. */}
-      <svg
-        viewBox="0 0 200 44"
-        className="mt-[0.8rem] h-[2.6rem] w-full"
-        preserveAspectRatio="none"
-        aria-hidden="true"
-      >
-        {/* Дуга — путь по большому кругу, каким его рисуют на картах. */}
-        <path
-          d="M14 32 Q100 2 186 32"
-          fill="none"
-          stroke="var(--color-amber)"
-          strokeOpacity={0.42}
-          strokeWidth={1.4}
-          strokeDasharray="3 4"
-          strokeLinecap="round"
+      {/* Маршрут: дуга от моего города к твоему. Ширина растягивается,
+          высота задана жёстко — иначе на широком виджете диаграмма растёт
+          вслед за шириной и занимает пол-карточки. Дуга поэтому в своём
+          слое с preserveAspectRatio="none", а метки — в своём, иначе их
+          бы расплющило вместе с ней. */}
+      <div className="relative mt-[0.8rem] h-[2.9rem] w-full">
+        <svg
+          viewBox="0 0 200 46"
+          className="absolute inset-0 h-full w-full"
+          preserveAspectRatio="none"
+          aria-hidden="true"
+        >
+          <path
+            d="M14 36 Q100 6 186 36"
+            fill="none"
+            stroke="var(--color-amber)"
+            strokeOpacity={0.42}
+            strokeWidth={1.4}
+            strokeDasharray="3 4"
+            strokeLinecap="round"
+          />
+        </svg>
+
+        {/* Я — метка неяркая. Ты — метка горящая, с ореолом вокруг. */}
+        <Marker at={7} className="text-star/55" />
+        <span
+          className="absolute bottom-0 h-[1.6rem] w-[1.6rem] -translate-x-1/2 translate-y-[0.42rem] rounded-full bg-amber/16"
+          style={{ left: "93%" }}
         />
-        {/* Я — обычная точка. */}
-        <circle cx="14" cy="32" r="3.4" fill="var(--color-star)" fillOpacity={0.55} />
-        {/* Ты — светишься. */}
-        <circle cx="186" cy="32" r="7" fill="var(--color-amber)" fillOpacity={0.16} />
-        <circle cx="186" cy="32" r="3.6" fill="var(--color-amber-hot)" />
-      </svg>
+        <Marker at={93} className="text-amber-hot" />
+      </div>
 
       <div className="font-system mt-[0.5rem] flex justify-between text-[10.5px] text-star/40">
         <span>{myCity}</span>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import ContentOverlay from "./ContentOverlay";
 import HomeScreen from "./HomeScreen";
 import Screens, { type ScreenIndex } from "./Screens";
 import SkyScreen, { type SparkKind } from "./SkyScreen";
@@ -9,7 +10,7 @@ import SparkText from "./SparkText";
 import TitleDawn from "./TitleDawn";
 import type { Settings } from "@/lib/defaults";
 import { speakingLetters, type Letter } from "@/lib/letters";
-import { MEMORIES } from "@/lib/memories";
+import { AUTHOR, MEMORIES } from "@/lib/memories";
 import type { ProjectorImage } from "@/lib/sky/projector";
 import { useDeck } from "@/lib/useDeck";
 import { useMemories } from "@/lib/useMemories";
@@ -17,7 +18,7 @@ import { useObserver } from "@/lib/useObserver";
 import { useReducedMotion } from "@/lib/useReducedMotion";
 import { useSeparationCounter } from "@/lib/time/useSeparationDays";
 
-/** Сколько держится текст вспышки. */
+/** Сколько держится текст вспышки, если её не закрыли раньше. */
 const SPARK_MS = 9000;
 /** Сколько висит подсказка. */
 const HINT_MS = 5600;
@@ -43,10 +44,16 @@ interface Spark {
   x: number;
   y: number;
   text: string;
-  /** Подпись под текстом: дата события или «моё послание». */
-  note?: string;
+  /** Зачин над строкой: у писем есть, у реплик нет. */
+  lead?: string;
+  /** Кто сказал. */
+  author?: string;
+  /** Когда сказал. У писем даты нет. */
+  date?: string;
   /** Чей голос — от этого зависит цвет текста. */
   voice?: "her" | "him";
+  /** Какая кнопка это зажгла: по ней же даём следующее. */
+  kind: SparkKind;
 }
 
 /**
@@ -66,15 +73,17 @@ export default function Night({ settings, letters }: NightProps) {
   const { takeNext } = useMemories();
 
   const [screen, setScreen] = useState<ScreenIndex>(0);
+  const [intro, setIntro] = useState(true);
   const [spark, setSpark] = useState<Spark | null>(null);
   // Отговорившие звёзды остаются в небе тёплым следом: за вечер оно
   // потихоньку заселяется тем, что мы друг другу сказали.
   const [lit, setLit] = useState<Array<{ id: number; x: number; y: number }>>([]);
   const [hint, setHint] = useState(false);
-  const [projector, setProjector] = useState<{ image: ProjectorImage | null; token: number }>({
-    image: null,
-    token: 0,
-  });
+  const [projector, setProjector] = useState<{
+    image: ProjectorImage | null;
+    token: number;
+    cancel: number;
+  }>({ image: null, token: 0, cancel: 0 });
   const [projectorPlaying, setProjectorPlaying] = useState(false);
   const [kissToken, setKissToken] = useState(0);
   const [kissInFlight, setKissInFlight] = useState(false);
@@ -143,22 +152,34 @@ export default function Night({ settings, letters }: NightProps) {
     [later],
   );
 
+  const runProjector = useCallback(() => {
+    setSpark(null);
+    setProjectorPlaying(true);
+    void takeNext().then((image) => {
+      setProjector((p) => ({ ...p, image, token: p.token + 1 }));
+    });
+  }, [takeNext]);
+
   const onSpark = useCallback(
     (kind: SparkKind) => {
       if (kind === "memory") {
-        if (projectorPlaying) return;
-        setSpark(null);
-        setProjectorPlaying(true);
-        void takeNext().then((image) => {
-          setProjector((p) => ({ image, token: p.token + 1 }));
-        });
+        runProjector();
         return;
       }
 
       if (kind === "letter") {
         const l = letterDeck.draw();
         if (!l) return;
-        showSpark({ id: l.id, x: l.starX, y: l.starY, text: l.text, note: "моё послание" });
+        // Зачин, а не подпись: письма — это то, что я про тебя знаю,
+        // и фраза должна вводить строку, а не стоять после неё.
+        showSpark({
+          id: l.id,
+          x: l.starX,
+          y: l.starY,
+          text: l.text,
+          lead: "я знаю, что…",
+          kind,
+        });
       } else {
         const m = dialogDeck.draw();
         if (!m) return;
@@ -167,15 +188,35 @@ export default function Night({ settings, letters }: NightProps) {
           id: DIALOG_ID_BASE + n,
           ...dialogSpot(n),
           text: m.text,
-          note: m.note ? `${m.date} · ${m.note}` : m.date,
+          author: AUTHOR[m.voice],
+          date: m.note ? `${m.date} · ${m.note}` : m.date,
           voice: m.voice,
+          kind,
         });
       }
     },
-    [projectorPlaying, takeNext, letterDeck, dialogDeck, dialogSpot, showSpark],
+    [runProjector, letterDeck, dialogDeck, dialogSpot, showSpark],
   );
 
+  /** Закрыть то, что горит сейчас. */
+  const dismiss = useCallback(() => {
+    if (spark) {
+      window.clearTimeout(sparkTimer.current);
+      setSpark(null);
+    }
+    // Прожектор не гасим рывком: небо само доводит луч до конца и сообщит
+    // об этом через onProjectorDone — тогда и вернётся интерфейс.
+    if (projectorPlaying) setProjector((p) => ({ ...p, cancel: p.cancel + 1 }));
+  }, [spark, projectorPlaying]);
+
+  /** Показать следующее того же рода, не закрывая текущее. */
+  const next = useCallback(() => {
+    if (projectorPlaying) runProjector();
+    else if (spark) onSpark(spark.kind);
+  }, [projectorPlaying, runProjector, spark, onSpark]);
+
   const onProjectorDone = useCallback(() => setProjectorPlaying(false), []);
+  const onIntroDone = useCallback(() => setIntro(false), []);
 
   const onKiss = useCallback(() => {
     if (kissInFlight) return;
@@ -199,7 +240,9 @@ export default function Night({ settings, letters }: NightProps) {
     [lit, spark],
   );
 
-  const busy = spark !== null || projectorPlaying;
+  const showing = spark !== null || projectorPlaying;
+  // Интерфейс уходит с глаз на всё, ради чего стоит смотреть на небо.
+  const veiled = intro || showing || kissInFlight;
 
   return (
     <>
@@ -215,14 +258,17 @@ export default function Night({ settings, letters }: NightProps) {
         birthNight={null}
         projectorImage={projector.image}
         projectorToken={projector.token}
+        projectorCancel={projector.cancel}
         onProjectorDone={onProjectorDone}
         cometToken={kissToken}
+        dawn={intro}
         reducedMotion={reducedMotion}
       />
 
       <Screens
         index={screen}
         onChange={setScreen}
+        hidden={veiled}
         home={
           <HomeScreen
             counter={counter}
@@ -233,12 +279,7 @@ export default function Night({ settings, letters }: NightProps) {
           />
         }
         sky={
-          <SkyScreen
-            onSpark={onSpark}
-            busy={busy}
-            hint={hint ? HINT_TEXT : null}
-            onBack={() => setScreen(0)}
-          />
+          <SkyScreen onSpark={onSpark} hint={hint ? HINT_TEXT : null} onBack={() => setScreen(0)} />
         }
       />
 
@@ -247,13 +288,23 @@ export default function Night({ settings, letters }: NightProps) {
           x={spark.x}
           y={spark.y}
           text={spark.text}
-          note={spark.note}
+          lead={spark.lead}
+          author={spark.author}
+          date={spark.date}
           voice={spark.voice}
           reducedMotion={reducedMotion}
         />
       )}
 
-      <TitleDawn bearingDeg={settings.bearingDeg} />
+      <ContentOverlay
+        open={showing}
+        onDismiss={dismiss}
+        onNext={next}
+        nextLabel={projectorPlaying ? "следующее фото" : "дальше"}
+      />
+
+      {/* Снимает себя сам: свет уже пошёл на убыль, а строка ещё уезжает. */}
+      <TitleDawn bearingDeg={settings.bearingDeg} onDone={onIntroDone} />
     </>
   );
 }

@@ -7,8 +7,6 @@ export type SparkKind = "memory" | "dialog" | "letter";
 
 interface SkyScreenProps {
   onSpark: (kind: SparkKind) => void;
-  /** Что-то уже горит в небе — кнопки уходят, чтобы не мешать смотреть. */
-  busy: boolean;
   /** Подсказка после первой вспышки: можно ещё раз. */
   hint: string | null;
   /** Вернуться к виджетам. */
@@ -18,10 +16,10 @@ interface SkyScreenProps {
 /**
  * Экран неба: три кнопки внизу и всё остальное — небу.
  *
- * Пока что-то горит, кнопки уходят целиком: они не должны спорить со светом
- * и перекрывать то, ради чего всё затевалось.
+ * Пока что-то горит, весь этот экран уезжает вниз целиком (см. `Screens`) —
+ * кнопки не должны спорить со светом. Здесь об этом заботиться не нужно.
  */
-export default function SkyScreen({ onSpark, busy, hint, onBack }: SkyScreenProps) {
+export default function SkyScreen({ onSpark, hint, onBack }: SkyScreenProps) {
   return (
     <div className="pointer-events-none flex h-full w-full flex-col px-[1.15rem] pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))]">
       {/* Дорога назад: тот же жест, что привёл сюда, только в другую сторону. */}
@@ -31,8 +29,7 @@ export default function SkyScreen({ onSpark, busy, hint, onBack }: SkyScreenProp
           if (e.detail > 0) e.currentTarget.blur();
           onBack();
         }}
-        className="font-system pointer-events-auto mx-auto flex items-center gap-[0.35em] text-[10.5px] tracking-[0.06em] text-star/28 transition-opacity duration-500 hover:text-star/50"
-        style={{ opacity: busy ? 0 : 1 }}
+        className="font-system caption pointer-events-auto mx-auto flex items-center gap-[0.35em] text-[10.5px] tracking-[0.06em] text-star/45 transition-colors hover:text-star/70"
       >
         <IconChevronUp size={13} className="rotate-180" />
         смахни вниз
@@ -42,20 +39,13 @@ export default function SkyScreen({ onSpark, busy, hint, onBack }: SkyScreenProp
 
       {/* Подсказка — над кнопками, коротко и один раз. */}
       <div
-        className="font-system mb-[0.8rem] text-center text-[11.5px] leading-snug text-amber/70 transition-opacity duration-500"
-        style={{ opacity: hint && !busy ? 1 : 0 }}
+        className="font-system caption mb-[0.8rem] text-center text-[11.5px] leading-snug text-amber/80 transition-opacity duration-500"
+        style={{ opacity: hint ? 1 : 0 }}
       >
         {hint}
       </div>
 
-      <div
-        className="pointer-events-auto mx-auto grid w-full max-w-[26rem] gap-[0.7rem] transition-all duration-500 sm:max-w-[49rem] sm:grid-cols-3"
-        style={{
-          opacity: busy ? 0 : 1,
-          transform: busy ? "translateY(14px)" : "none",
-          pointerEvents: busy ? "none" : "auto",
-        }}
-      >
+      <div className="pointer-events-auto mx-auto grid w-full max-w-[26rem] gap-[0.7rem] sm:max-w-[49rem] sm:grid-cols-3">
         <WidgetButton
           icon={<IconBeam />}
           label="Зажги воспоминание"

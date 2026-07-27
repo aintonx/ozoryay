@@ -1,9 +1,16 @@
 import { COMET_DURATION, drawComet } from "./comet";
+import { DAWN_HOLD_END, dawnRise, drawDawn } from "./dawn";
 import { LAYOUT, glowXFromBearing, groundYAt } from "./layout";
 import { drawFaintStars, drawGroundHaze, drawMilkyWay } from "./milkyway";
 import { makeMoonSprite } from "./moon";
 import { drawRealSky, moonOnScreen, type Observer, type RealSkyView } from "./realsky";
-import { drawProjector, PROJECTOR_TOTAL, type ProjectorImage } from "./projector";
+import {
+  drawProjector,
+  PROJECTOR_HOLD_END,
+  PROJECTOR_SWAP_AT,
+  PROJECTOR_TOTAL,
+  type ProjectorImage,
+} from "./projector";
 import { DayStar, makeDayStars, makeStarSprite, STAR_TINTS, withAlpha } from "./stars";
 import { drawTerrain } from "./terrain";
 
@@ -58,10 +65,20 @@ export interface SkyOptions {
   projectorImage: ProjectorImage | null;
   /** Растёт при каждом запуске прожектора — по нему начинается новый прокат. */
   projectorToken: number;
+  /** Растёт, когда прокат просят закончить досрочно. */
+  projectorCancel: number;
   /** Вызывается один раз, когда прокат прожектора завершился. */
   onProjectorDone?: () => void;
   /** Растёт при отправке послания — по нему запускается падение кометы. */
   cometToken: number;
+  /**
+   * Идёт ли вступительный восход.
+   *
+   * Солнце живёт на канвасе, а не слоем поверх него: оно ближе звёзд и
+   * дальше холмов, и только здесь этот порядок соблюдается сам собой.
+   * Как только флаг снимут, солнце уходит за хребет, даже если не достояло.
+   */
+  dawn: boolean;
 }
 
 /** Сколько длится рождение звезды, секунд. */
@@ -105,10 +122,15 @@ export function createSky(canvas: HTMLCanvasElement, initial: SkyOptions): SkyHa
   let birthSeen: number | null = null;
   let birthStart = 0;
   let projToken = initial.projectorToken;
+  let projCancel = initial.projectorCancel;
   let projStart = -Infinity;
   let projDoneFired = true;
   let cometToken = initial.cometToken;
   let cometStart = -Infinity;
+  // Если небо создано уже после вступления, восхода не было вовсе:
+  // бесконечность в прошлом даёт нулевой подъём с первого же кадра.
+  let dawnStart = initial.dawn ? start : -Infinity;
+  let dawnCut = !initial.dawn;
 
   function layer(): [HTMLCanvasElement, CanvasRenderingContext2D] {
     const c = document.createElement("canvas");
@@ -240,12 +262,25 @@ export function createSky(canvas: HTMLCanvasElement, initial: SkyOptions): SkyHa
     }
     const birthE = opts.birthNight === null ? -1 : (now - birthStart) / 1000;
 
+    let projE = (now - projStart) / 1000;
+    const wasRunning = projE >= 0 && projE <= PROJECTOR_TOTAL;
+
     if (opts.projectorToken !== projToken) {
       projToken = opts.projectorToken;
-      projStart = now;
+      // Луч уже поднят — не опускаем его ради смены кадра: перематываем на
+      // тот момент, где он стоит и начинает проявлять фотографию.
+      projStart = wasRunning ? now - PROJECTOR_SWAP_AT * 1000 : now;
+      projE = wasRunning ? PROJECTOR_SWAP_AT : 0;
       projDoneFired = false;
+    } else if (opts.projectorCancel !== projCancel) {
+      projCancel = opts.projectorCancel;
+      // Попросили закрыть — перематываем в фазу ухода. Луч убирается сам,
+      // как в конце обычного проката, и ничто не пропадает рывком.
+      if (wasRunning && projE < PROJECTOR_HOLD_END) {
+        projStart = now - PROJECTOR_HOLD_END * 1000;
+        projE = PROJECTOR_HOLD_END;
+      }
     }
-    const projE = (now - projStart) / 1000;
     const projActive = projE >= 0 && projE <= PROJECTOR_TOTAL;
     // Пока горит прожектор, всё вокруг притухает — как при раскрытии письма.
     // Огибающая повторяет луч: растёт с подъёмом, спадает при убирании.
@@ -329,6 +364,21 @@ export function createSky(canvas: HTMLCanvasElement, initial: SkyOptions): SkyHa
     if (cometE >= 0 && cometE <= COMET_DURATION) {
       drawComet(ctx, w, h, cometE, opts.bearingDeg);
     }
+
+    // Восход — после звёзд и до земли. Солнце гасит собой звёзды, а деревья
+    // и крыши остаются перед ним: они ближе.
+    let dawnE = (now - dawnStart) / 1000;
+    if (!opts.dawn && !dawnCut) {
+      dawnCut = true;
+      // Убрали досрочно — солнце не пропадает рывком, а уходит за хребет.
+      if (dawnE < DAWN_HOLD_END) {
+        dawnStart = now - DAWN_HOLD_END * 1000;
+        dawnE = DAWN_HOLD_END;
+      }
+    }
+    // При выключенном движении солнце просто стоит, пока идёт вступление.
+    const rise = opts.reducedMotion && opts.dawn ? 1 : dawnRise(dawnE);
+    drawDawn(ctx, w, h, rise, opts.bearingDeg);
 
     if (ground) ctx.drawImage(ground, 0, 0, w, h);
 

@@ -45,6 +45,11 @@ export const viewport: Viewport = {
   colorScheme: "dark",
   width: "device-width",
   initialScale: 1,
+  // Это не документ, а один экран: зумить и таскать его нечего. Случайный
+  // щипок иначе оставляет сайт съехавшим вбок, и вернуть его обратно
+  // на телефоне почти невозможно.
+  maximumScale: 1,
+  userScalable: false,
   viewportFit: "cover",
 };
 

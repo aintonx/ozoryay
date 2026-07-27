@@ -17,8 +17,10 @@ export interface SkyProps {
   birthNight: number | null;
   projectorImage: ProjectorImage | null;
   projectorToken: number;
+  projectorCancel: number;
   onProjectorDone: () => void;
   cometToken: number;
+  dawn: boolean;
   reducedMotion: boolean;
 }
 

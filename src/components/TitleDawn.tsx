@@ -1,43 +1,76 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { glowXFromBearing, groundYAt } from "@/lib/sky/layout";
 import { useReducedMotion } from "@/lib/useReducedMotion";
 
 const FULL_MS = 10200; // подъём + 5с + уход, с запасом на снятие
 const REDUCED_MS = 5600;
+/** Сколько занимает досрочный уход за горизонт. */
+const SET_MS = 2600;
 
 const TEXT = "Ты озоряешь мою жизнь, принцесса";
 
 interface TitleDawnProps {
   /** Азимут на её город: рассвет случается ровно с её стороны. */
   bearingDeg: number;
+  /** Свет пошёл на убыль — можно выпускать интерфейс. */
+  onDone: () => void;
 }
 
 /**
- * Единственный рассвет, который здесь бывает до её приезда.
+ * Слова, которые выносит на себе восход.
  *
- * При открытии из-за линии холмов восходит солнце — настоящий диск с заревом,
- * а не свечение вокруг букв, — и выносит на себе «ты озоряешь мою жизнь,
- * принцесса». Держится пять секунд и уходит обратно за горизонт. Один раз
- * за загрузку: это вступление, а не постоянный текст.
+ * Само солнце рисует канвас (см. `sky/dawn.ts`) — здесь только строка,
+ * едущая по той же кривой. Она восходит из-за холмов, держится пять секунд
+ * и уходит обратно за горизонт; если ждать не хочется, достаточно коснуться
+ * экрана — и она уйдёт сразу, вместе с солнцем.
  *
- * Восходит с её стороны — по тому же азимуту, где всю ночь тлеет зарево
- * над Краснодаром. Маска — clip-path по силуэту земли (та же функция
- * groundYAt, что рисует холмы), поэтому солнце появляется из-за холмов
- * и за них же садится, а не всплывает поверх них. Полигон задан в долях
- * вьюпорта, значит не зависит от размера экрана и не требует пересчёта.
+ * Маска — clip-path по силуэту земли (та же функция groundYAt, что рисует
+ * холмы), поэтому строка пропадает точно по контуру холмов. Полигон задан
+ * в долях вьюпорта, значит не зависит от размера экрана.
  */
-export default function TitleDawn({ bearingDeg }: TitleDawnProps) {
+export default function TitleDawn({ bearingDeg, onDone }: TitleDawnProps) {
   const reduced = useReducedMotion();
+  const [leaving, setLeaving] = useState(false);
   const [gone, setGone] = useState(false);
+  const done = useRef(false);
+
+  // Обработчик держим в рефе, а не в зависимостях эффекта.
+  //
+  // Родитель пересобирается каждую секунду — тикает счётчик разлуки, — и с
+  // обычной зависимостью таймер вступления сбрасывался бы на каждом тике
+  // и не срабатывал никогда: сайт навсегда оставался бы в заставке.
+  const doneCb = useRef(onDone);
+  useEffect(() => {
+    doneCb.current = onDone;
+  });
+
+  const finish = useCallback(() => {
+    if (done.current) return;
+    done.current = true;
+    doneCb.current();
+  }, []);
 
   useEffect(() => {
-    const t = window.setTimeout(() => setGone(true), reduced ? REDUCED_MS : FULL_MS);
+    const t = window.setTimeout(
+      () => {
+        finish();
+        setGone(true);
+      },
+      reduced ? REDUCED_MS : FULL_MS,
+    );
     return () => window.clearTimeout(t);
-  }, [reduced]);
+  }, [reduced, finish]);
 
-  // Небо — всё, что выше силуэта земли. Слой клипается этой областью.
+  const dismiss = useCallback(() => {
+    if (done.current) return;
+    finish();
+    setLeaving(true);
+    window.setTimeout(() => setGone(true), reduced ? 400 : SET_MS);
+  }, [finish, reduced]);
+
+  // Небо — всё, что выше силуэта земли. Строка клипается этой областью.
   const skyClip = useMemo(() => {
     const N = 48;
     const pts: string[] = ["0% 0%", "100% 0%"];
@@ -48,34 +81,32 @@ export default function TitleDawn({ bearingDeg }: TitleDawnProps) {
     return `polygon(${pts.join(",")})`;
   }, []);
 
-  // Точка восхода: та же, где зарево, и высота земли ровно в ней.
-  const sunX = glowXFromBearing(bearingDeg);
-  const sunY = groundYAt(sunX);
-
   if (gone) return null;
+
+  // Строка стоит над куполом солнца, а солнце восходит с её стороны.
+  const sunY = groundYAt(glowXFromBearing(bearingDeg));
+  const motion = reduced ? "" : leaving ? "title-set" : "title-dawn";
 
   return (
     <div
-      className="pointer-events-none fixed inset-0 z-20 select-none"
-      style={{ clipPath: skyClip, WebkitClipPath: skyClip }}
+      className="fixed inset-0 z-30 overflow-hidden select-none"
+      style={{
+        clipPath: skyClip,
+        WebkitClipPath: skyClip,
+        // Пока вступление идёт, любое касание его снимает: ждать не должно
+        // приходиться никогда.
+        pointerEvents: leaving ? "none" : "auto",
+      }}
+      onPointerDown={dismiss}
       aria-hidden="true"
     >
-      {/*
-        Солнце и слова едут одним движением: свет не может опередить надпись
-        или отстать от неё — они восходят как одно целое.
-      */}
-      <div className={`absolute inset-0 ${reduced ? "" : "title-dawn"}`}>
-        {/* Высокий слабый отсвет и узкая яркая полоса у самой земли. */}
-        <div className="dawn-halo" style={{ left: `${sunX * 100}%`, top: `${sunY * 100}%` }} />
-        <div className="dawn-glow" style={{ left: `${sunX * 100}%`, top: `${sunY * 100}%` }} />
-        {/* Диск: центр на самой линии земли, поэтому виден только купол. */}
-        <div className="dawn-sun" style={{ left: `${sunX * 100}%`, top: `${sunY * 100}%` }} />
-
-        {/* Слова — выше купола, в самом свете. */}
+      <div
+        className="absolute left-1/2 w-full max-w-[36rem] -translate-x-1/2 px-7"
+        style={{ top: `${(sunY - 0.215) * 100}%` }}
+      >
         <h1
-          className="font-display title-face absolute left-1/2 w-full max-w-[36rem] -translate-x-1/2 -translate-y-1/2 px-7 text-center"
+          className={`font-display title-face text-center ${motion}`}
           style={{
-            top: `${(sunY - 0.215) * 100}%`,
             margin: 0,
             fontWeight: 400,
             lineHeight: 1.16,

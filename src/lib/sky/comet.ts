@@ -53,6 +53,17 @@ export function drawComet(
   const hx = bx(head);
   const hy = by(head);
 
+  // Куда он летит прямо сейчас — по касательной к кривой.
+  //
+  // Отпечаток разворачивается по курсу, но не вдоль него, а поперёк: губы
+  // идут перпендикулярно движению, отпечатком вперёд. Вдоль курса он вставал
+  // бы на ребро и превращался в светлую щепку — узнать в ней поцелуй нельзя,
+  // а узнать надо. Наклон при этом всё равно меняется вместе с падением.
+  const ahead = Math.min(1, head + 0.02);
+  const behind = Math.max(0, head - 0.02);
+  const course =
+    Math.atan2(by(ahead) - by(behind), bx(ahead) - bx(behind)) - Math.PI / 2;
+
   // Точки хвоста позади головы вдоль кривой.
   const N = 22;
   const tailSpan = 0.22;
@@ -109,15 +120,18 @@ export function drawComet(
     g.stroke();
   }
 
-  // Голова — не камень, а горящий поцелуй: ореол и в нём силуэт губ.
-  const hr = Math.max(1.5, unit * 0.0045);
-  const glow = g.createRadialGradient(hx, hy, 0, hx, hy, hr * 9);
-  glow.addColorStop(0, withAlpha(AMBER_HOT, 0.95));
-  glow.addColorStop(0.22, withAlpha(AMBER, 0.42));
+  // Ореол вокруг головы — он и уходит в общее размытие вместе с хвостом.
+  // Сам отпечаток заметно крупнее искры: на десяти пикселях узнать в нём
+  // поцелуй невозможно, а узнать надо.
+  const hr = Math.min(23, Math.max(9, unit * 0.033));
+  const glowR = hr * 2.1;
+  const glow = g.createRadialGradient(hx, hy, 0, hx, hy, glowR);
+  // Ядро приглушено: на ярком пятне сам отпечаток перестаёт читаться.
+  glow.addColorStop(0, withAlpha(AMBER, 0.4));
+  glow.addColorStop(0.38, withAlpha(AMBER, 0.24));
   glow.addColorStop(1, withAlpha(AMBER, 0));
   g.fillStyle = glow;
-  g.fillRect(hx - hr * 9, hy - hr * 9, hr * 18, hr * 18);
-  drawKissMark(g, hx, hy, hr * 3.1);
+  g.fillRect(hx - glowR, hy - glowR, glowR * 2, glowR * 2);
   g.restore();
 
   ctx.save();
@@ -127,32 +141,60 @@ export function drawComet(
   ctx.drawImage(buf, minX, minY);
   ctx.filter = "none";
   ctx.restore();
+
+  // Сам отпечаток — поверх размытия и без него. Под общим блюром он
+  // превращался в светлую кляксу, и понять, что это поцелуй, было нельзя;
+  // а понять надо, иначе за горизонт улетает просто камень.
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.globalAlpha = alpha;
+  ctx.translate(hx, hy);
+  ctx.rotate(course);
+  drawKissMark(ctx, 0, 0, hr);
+  ctx.restore();
 }
 
 /**
- * Силуэт поцелуя — то, что летит вместо камня.
+ * Отпечаток губ — то, что летит вместо камня.
  *
- * Две дуги верхней губы с ложбинкой посередине и одна нижняя. На размере
- * в несколько пикселей узнаётся именно как поцелуй, а не как пятно: всё
- * держится на ложбинке сверху и на ширине формы.
+ * Две доли с зазором по линии смыкания, ширина вдвое больше высоты: ровно
+ * та же форма, что у иконки на кнопке (см. `IconKiss`). Цельный силуэт с
+ * ложбинкой сверху на таком размере читается как сердце, а зазор и ширина
+ * не оставляют глазу выбора.
+ *
+ * Рисуется в своей системе координат: вызывающий уже перенёс начало в
+ * голову кометы и развернул её по курсу.
  */
 function drawKissMark(ctx: CanvasRenderingContext2D, x: number, y: number, r: number) {
   ctx.save();
   ctx.translate(x, y);
-  ctx.scale(r / 10, r / 10);
-
-  ctx.beginPath();
-  // Верхняя губа: от левого угла к ложбинке и к правому углу.
-  ctx.moveTo(-10, -1.4);
-  ctx.bezierCurveTo(-7.5, -7.4, -2.6, -7.4, 0, -2.4);
-  ctx.bezierCurveTo(2.6, -7.4, 7.5, -7.4, 10, -1.4);
-  // Нижняя губа — одной дугой обратно.
-  ctx.bezierCurveTo(7.6, 6.6, 2.8, 9.4, 0, 9.4);
-  ctx.bezierCurveTo(-2.8, 9.4, -7.6, 6.6, -10, -1.4);
-  ctx.closePath();
-
+  // Исходные координаты — в сетке 24×24 с центром в (12, 13).
+  ctx.scale(r / 11, r / 11);
+  ctx.translate(-12, -13);
   ctx.fillStyle = withAlpha(AMBER_HOT, 1);
+
+  // Верхняя губа.
+  ctx.beginPath();
+  ctx.moveTo(2.2, 11.9);
+  ctx.bezierCurveTo(3.4, 8.4, 5.6, 6.6, 7.6, 6.6);
+  ctx.bezierCurveTo(9.4, 6.6, 10.9, 7.7, 12, 9.5);
+  ctx.bezierCurveTo(13.1, 7.7, 14.6, 6.6, 16.4, 6.6);
+  ctx.bezierCurveTo(18.4, 6.6, 20.6, 8.4, 21.8, 11.9);
+  ctx.bezierCurveTo(19.6, 11.2, 15.9, 10.8, 12, 10.8);
+  ctx.bezierCurveTo(8.1, 10.8, 4.4, 11.2, 2.2, 11.9);
+  ctx.closePath();
   ctx.fill();
+
+  // Нижняя губа.
+  ctx.beginPath();
+  ctx.moveTo(2.2, 13.1);
+  ctx.bezierCurveTo(4.4, 12.5, 8.1, 12.1, 12, 12.1);
+  ctx.bezierCurveTo(15.9, 12.1, 19.6, 12.5, 21.8, 13.1);
+  ctx.bezierCurveTo(20.2, 16.9, 16.4, 19.4, 12, 19.4);
+  ctx.bezierCurveTo(7.6, 19.4, 3.8, 16.9, 2.2, 13.1);
+  ctx.closePath();
+  ctx.fill();
+
   ctx.restore();
 }
 

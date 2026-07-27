@@ -60,9 +60,15 @@ export const LETTERS: Letter[] = [
   { id: 20, text: "Ты боишься засыпать одна без света", category: "confession", starX: 0.842, starY: 0.806, constellation: null, isEternal: true },
 ];
 
-/** Звёзды, которым есть что сказать. Вечная сюда не входит по условию. */
+/**
+ * Звёзды, которым есть что сказать.
+ *
+ * Вечная сюда не входит по условию, пустые слоты — потому что текста ещё
+ * нет, а звезда обсессии — потому что у неё вместо текста заглушка: она
+ * жила отдельной механикой, которой больше нет.
+ */
 export function speakingLetters(all: Letter[] = LETTERS): Letter[] {
-  return all.filter((l) => !l.isEternal && l.text.trim().length > 0);
+  return all.filter((l) => !l.isEternal && !l.special && l.text.trim().length > 0);
 }
 
 interface Point {
