@@ -15,6 +15,8 @@ interface SparkTextProps {
   /** Когда сказал. У писем даты нет. */
   date?: string;
   voice?: "her" | "him";
+  /** Слова уходят: тают вместе со звездой, освобождая место следующей. */
+  leaving?: boolean;
   reducedMotion: boolean;
 }
 
@@ -33,6 +35,7 @@ export default function SparkText({
   author,
   date,
   voice,
+  leaving = false,
   reducedMotion,
 }: SparkTextProps) {
   const [vp, setVp] = useState({ w: 0, h: 0 });
@@ -64,7 +67,14 @@ export default function SparkText({
     <div
       key={text}
       className="pointer-events-none fixed z-30"
-      style={below ? { left, top: py + gap, width } : { left, bottom: vp.h - py + gap, width }}
+      style={{
+        ...(below ? { left, top: py + gap, width } : { left, bottom: vp.h - py + gap, width }),
+        // Уход — прозрачностью и размытием, тем же движением, каким слова
+        // проступали. Здесь нет стекла, поэтому прозрачность безопасна.
+        opacity: leaving ? 0 : 1,
+        filter: leaving ? "blur(5px)" : "blur(0px)",
+        transition: "opacity 380ms ease, filter 380ms ease",
+      }}
     >
       {lead && (
         <p className="font-system caption emerge mb-[0.7em] text-center text-[11px] tracking-[0.04em] text-star/50">

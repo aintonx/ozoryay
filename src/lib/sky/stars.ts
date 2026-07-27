@@ -12,6 +12,8 @@ export interface DayStar {
   period: number;
   /** Начальная фаза, чтобы небо не дышало в такт. */
   phase: number;
+  /** Размах мерцания: у каждой звезды свой, иначе поле пульсирует хором. */
+  amp: number;
   /** Оттенок 0..1: 0 — голубая звезда, 1 — тёплая. Их цвет — это температура. */
   tint: number;
 }
@@ -98,10 +100,26 @@ function placeStar(night: number, seed: number): DayStar {
   const mag = Math.pow(rand(), 2.6);
   const period = 3 + rand() * 5;
   const phase = rand() * Math.PI * 2;
+  const amp = 0.22 + rand() * 0.3;
   // Оттенок тяготеет к середине шкалы: крайние цвета — редкость.
   const tint = (rand() + rand()) / 2;
 
-  return { night, x, y, mag, period, phase, tint };
+  return { night, x, y, mag, period, phase, amp, tint };
+}
+
+/**
+ * Мерцание в момент `t`, множитель к яркости.
+ *
+ * Два несоизмеримых синуса вместо одного: с одним небо дышит ровно, как
+ * метроном, и это сразу читается как анимация. С двумя рисунок не
+ * повторяется, и мерцание похоже на настоящее — воздух над головой
+ * колышется неравномерно.
+ */
+export function twinkleAt(t: number, period: number, phase: number, amp: number): number {
+  const w = (Math.PI * 2) / period;
+  const slow = Math.sin(t * w + phase);
+  const fast = Math.sin(t * w * 2.73 + phase * 1.7);
+  return 1 + amp * (0.68 * slow + 0.32 * fast);
 }
 
 function clamp01(v: number) {

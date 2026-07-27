@@ -87,16 +87,30 @@ export function WidgetButton({
       <span className="flex h-[2.1rem] w-[2.1rem] shrink-0 items-center justify-center rounded-full bg-amber/12 text-[1.05rem] text-amber/90 transition-opacity duration-300 group-hover:bg-amber/18 group-disabled:opacity-40">
         {icon}
       </span>
+      {/*
+        В плитке у подписи и у пояснения своя минимальная высота — по две
+        строки. Иначе соседние плитки с разной длиной текста расходятся:
+        у одной подпись в одну строку, у другой в две, и при выравнивании
+        по низу карточки строки встают на разных уровнях.
+      */}
       <span
         className={`transition-opacity duration-300 group-disabled:opacity-45 ${
           tile ? "block sm:min-w-0 sm:flex-1" : "min-w-0 flex-1"
         }`}
       >
-        <span className="font-system block text-[13.5px] leading-tight font-medium text-star/92">
+        <span
+          className={`font-system block text-[13.5px] leading-tight font-medium text-star/92 ${
+            tile ? "min-h-[2.5em] sm:min-h-0" : ""
+          }`}
+        >
           {label}
         </span>
         {hint && (
-          <span className="font-system mt-[0.15em] block text-[11px] leading-snug text-star/42">
+          <span
+            className={`font-system mt-[0.15em] block text-[11px] leading-snug text-star/42 ${
+              tile ? "min-h-[2.75em] sm:min-h-0" : ""
+            }`}
+          >
             {hint}
           </span>
         )}

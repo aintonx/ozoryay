@@ -1,3 +1,4 @@
+import { EMOJI_FONT, KISS } from "../emoji";
 import { glowXFromBearing } from "./layout";
 import { withAlpha } from "./stars";
 
@@ -53,16 +54,11 @@ export function drawComet(
   const hx = bx(head);
   const hy = by(head);
 
-  // Куда он летит прямо сейчас — по касательной к кривой.
-  //
-  // Отпечаток разворачивается по курсу, но не вдоль него, а поперёк: губы
-  // идут перпендикулярно движению, отпечатком вперёд. Вдоль курса он вставал
-  // бы на ребро и превращался в светлую щепку — узнать в ней поцелуй нельзя,
-  // а узнать надо. Наклон при этом всё равно меняется вместе с падением.
+  // Куда он летит прямо сейчас — по касательной к кривой. Отпечаток идёт
+  // по своей длинной оси: уголок губ впереди, хвост позади.
   const ahead = Math.min(1, head + 0.02);
   const behind = Math.max(0, head - 0.02);
-  const course =
-    Math.atan2(by(ahead) - by(behind), bx(ahead) - bx(behind)) - Math.PI / 2;
+  const course = Math.atan2(by(ahead) - by(behind), bx(ahead) - bx(behind));
 
   // Точки хвоста позади головы вдоль кривой.
   const N = 22;
@@ -123,12 +119,13 @@ export function drawComet(
   // Ореол вокруг головы — он и уходит в общее размытие вместе с хвостом.
   // Сам отпечаток заметно крупнее искры: на десяти пикселях узнать в нём
   // поцелуй невозможно, а узнать надо.
-  const hr = Math.min(23, Math.max(9, unit * 0.033));
-  const glowR = hr * 2.1;
+  const hr = Math.min(30, Math.max(13, unit * 0.045));
+  const glowR = hr * 1.6;
   const glow = g.createRadialGradient(hx, hy, 0, hx, hy, glowR);
-  // Ядро приглушено: на ярком пятне сам отпечаток перестаёт читаться.
-  glow.addColorStop(0, withAlpha(AMBER, 0.4));
-  glow.addColorStop(0.38, withAlpha(AMBER, 0.24));
+  // Ядро приглушено и уже самого отпечатка: на ярком пятне он перестаёт
+  // читаться, а читаться он обязан — ради него всё и затевалось.
+  glow.addColorStop(0, withAlpha(AMBER, 0.34));
+  glow.addColorStop(0.42, withAlpha(AMBER, 0.2));
   glow.addColorStop(1, withAlpha(AMBER, 0));
   g.fillStyle = glow;
   g.fillRect(hx - glowR, hy - glowR, glowR * 2, glowR * 2);
@@ -145,57 +142,37 @@ export function drawComet(
   // Сам отпечаток — поверх размытия и без него. Под общим блюром он
   // превращался в светлую кляксу, и понять, что это поцелуй, было нельзя;
   // а понять надо, иначе за горизонт улетает просто камень.
+  //
+  // Складывать его свет с фоном («lighter») тоже нельзя: цветной глиф от
+  // этого выцветает добела. Кладём как есть.
   ctx.save();
-  ctx.globalCompositeOperation = "lighter";
   ctx.globalAlpha = alpha;
   ctx.translate(hx, hy);
   ctx.rotate(course);
-  drawKissMark(ctx, 0, 0, hr);
+  // Отражение по горизонтали: после него вперёд по курсу смотрит левый
+  // уголок губ — он и работает носом ракеты, а верх отпечатка остаётся
+  // верхом. Без отражения вперёд шёл бы правый край, хвостом вперёд.
+  ctx.scale(-1, 1);
+  drawKissMark(ctx, hr * 2.6);
   ctx.restore();
 }
 
 /**
  * Отпечаток губ — то, что летит вместо камня.
  *
- * Две доли с зазором по линии смыкания, ширина вдвое больше высоты: ровно
- * та же форма, что у иконки на кнопке (см. `IconKiss`). Цельный силуэт с
- * ложбинкой сверху на таком размере читается как сердце, а зазор и ширина
- * не оставляют глазу выбора.
+ * Не рисунок, а системный эмодзи 💋: ровно тот же символ, что стоит на
+ * кнопке. Нарисованные губы на таком размере узнавались только тем, кто
+ * знает, что ищет, — а понять, что за горизонт улетает поцелуй, должно быть
+ * можно с первого взгляда.
  *
  * Рисуется в своей системе координат: вызывающий уже перенёс начало в
  * голову кометы и развернул её по курсу.
  */
-function drawKissMark(ctx: CanvasRenderingContext2D, x: number, y: number, r: number) {
-  ctx.save();
-  ctx.translate(x, y);
-  // Исходные координаты — в сетке 24×24 с центром в (12, 13).
-  ctx.scale(r / 11, r / 11);
-  ctx.translate(-12, -13);
-  ctx.fillStyle = withAlpha(AMBER_HOT, 1);
-
-  // Верхняя губа.
-  ctx.beginPath();
-  ctx.moveTo(2.2, 11.9);
-  ctx.bezierCurveTo(3.4, 8.4, 5.6, 6.6, 7.6, 6.6);
-  ctx.bezierCurveTo(9.4, 6.6, 10.9, 7.7, 12, 9.5);
-  ctx.bezierCurveTo(13.1, 7.7, 14.6, 6.6, 16.4, 6.6);
-  ctx.bezierCurveTo(18.4, 6.6, 20.6, 8.4, 21.8, 11.9);
-  ctx.bezierCurveTo(19.6, 11.2, 15.9, 10.8, 12, 10.8);
-  ctx.bezierCurveTo(8.1, 10.8, 4.4, 11.2, 2.2, 11.9);
-  ctx.closePath();
-  ctx.fill();
-
-  // Нижняя губа.
-  ctx.beginPath();
-  ctx.moveTo(2.2, 13.1);
-  ctx.bezierCurveTo(4.4, 12.5, 8.1, 12.1, 12, 12.1);
-  ctx.bezierCurveTo(15.9, 12.1, 19.6, 12.5, 21.8, 13.1);
-  ctx.bezierCurveTo(20.2, 16.9, 16.4, 19.4, 12, 19.4);
-  ctx.bezierCurveTo(7.6, 19.4, 3.8, 16.9, 2.2, 13.1);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.restore();
+function drawKissMark(ctx: CanvasRenderingContext2D, size: number) {
+  ctx.font = `${size}px ${EMOJI_FONT}`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(KISS, 0, 0);
 }
 
 /** Переиспользуемый офскрин для кометы. */

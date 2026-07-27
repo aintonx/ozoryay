@@ -87,8 +87,8 @@ export default function ContentOverlay({
         </button>
 
         <span
-          className="font-system caption text-[10.5px] tracking-[0.05em] text-star/40 transition-opacity duration-300"
-          style={{ opacity: held ? 0.15 : 1 }}
+          className="font-system caption text-[12px] font-medium tracking-[0.05em] text-star transition-opacity duration-300"
+          style={{ opacity: held ? 0.25 : 1 }}
         >
           смахни, чтобы закрыть
         </span>

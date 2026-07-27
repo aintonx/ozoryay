@@ -86,6 +86,27 @@ export function drawMilkyWay(ctx: CanvasRenderingContext2D, w: number, h: number
   ctx.restore();
 }
 
+/** Звезда далёкой россыпи, которая мерцает в кадре, а не запечена в фон. */
+export interface FaintStar {
+  x: number;
+  y: number;
+  r: number;
+  alpha: number;
+  tint: string;
+  period: number;
+  phase: number;
+  amp: number;
+}
+
+/**
+ * Порог, выше которого звезда россыпи оживает.
+ *
+ * Ярче него — мерцает в каждом кадре, слабее — остаётся в статическом слое.
+ * Мерцать всей россыпью незачем: сотни точек в полпикселя дороже, а глаз
+ * замечает дрожание только у тех, что различает поодиночке.
+ */
+const LIVE_ABOVE = 0.3;
+
 /**
  * Далёкая звёздная россыпь по всему небу.
  *
@@ -94,7 +115,10 @@ export function drawMilkyWay(ctx: CanvasRenderingContext2D, w: number, h: number
  * это просто далёкое небо, на несколько порядков слабее. Звёзды-дни на её
  * фоне остаются заметно ярче, поэтому смысл «каждая ночь — звезда» не тонет.
  *
- * Рисуется в статический слой, в кадре ничего не стоит.
+ * Слабая часть уходит в статический слой, заметная — возвращается списком:
+ * её рисует кадр, и она дышит. Обе функции идут по одной и той же
+ * последовательности с одним зерном, поэтому делят россыпь ровно пополам
+ * по яркости и ничего не задваивают.
  */
 export function drawFaintStars(
   ctx: CanvasRenderingContext2D,
@@ -102,6 +126,37 @@ export function drawFaintStars(
   h: number,
   groundYAt: (x: number) => number,
   tints: readonly string[],
+) {
+  walkFaintStars(w, h, groundYAt, tints, (s) => {
+    if (s.alpha > LIVE_ABOVE) return;
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+    ctx.fillStyle = withAlpha(s.tint, s.alpha);
+    ctx.fill();
+  });
+}
+
+/** Те же звёзды, что заметны поодиночке. Их рисует и колышет кадр. */
+export function makeLiveFaintStars(
+  w: number,
+  h: number,
+  groundYAt: (x: number) => number,
+  tints: readonly string[],
+): FaintStar[] {
+  const live: FaintStar[] = [];
+  walkFaintStars(w, h, groundYAt, tints, (s) => {
+    if (s.alpha > LIVE_ABOVE) live.push(s);
+  });
+  return live;
+}
+
+/** Единственный проход по россыпи. Один и тот же для обоих потребителей. */
+function walkFaintStars(
+  w: number,
+  h: number,
+  groundYAt: (x: number) => number,
+  tints: readonly string[],
+  emit: (s: FaintStar) => void,
 ) {
   const rand = mulberry32(41720260630);
   const count = Math.round((w * h) / 1500);
@@ -111,25 +166,16 @@ export function drawFaintStars(
     const yFrac = Math.pow(rand(), 1.25); // к горизонту реже: там дымка
     const limit = groundYAt(x / w) * h;
     const y = yFrac * limit;
-    if (y > limit - 4) continue;
-
-    const a = 0.06 + Math.pow(rand(), 2.4) * 0.5;
+    const alpha = 0.06 + Math.pow(rand(), 2.4) * 0.5;
     const r = rand() < 0.82 ? 0.4 : 0.62;
     const tint = tints[Math.floor(rand() * tints.length)];
-
-    // У самых заметных из россыпи — крошечный ореол, иначе поле плоское.
-    if (a > 0.4) {
-      const g = ctx.createRadialGradient(x, y, 0, x, y, r * 6);
-      g.addColorStop(0, withAlpha(tint, a * 0.5));
-      g.addColorStop(1, withAlpha(tint, 0));
-      ctx.fillStyle = g;
-      ctx.fillRect(x - r * 6, y - r * 6, r * 12, r * 12);
-    }
-
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fillStyle = withAlpha(tint, a);
-    ctx.fill();
+    const period = 2.6 + rand() * 4.4;
+    const phase = rand() * Math.PI * 2;
+    const amp = 0.3 + rand() * 0.45;
+    // Числа тянем всегда, даже для отброшенной звезды: иначе оба прохода
+    // разойдутся и россыпь развалится на две разные.
+    if (y > limit - 4) continue;
+    emit({ x, y, r, alpha, tint, period, phase, amp });
   }
 }
 

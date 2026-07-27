@@ -11,8 +11,6 @@ const HOLD_END = 7.6; // до этого момента фото держитс�
 const FADE_OUT = 8.7; // фото гаснет
 const RETRACT = 9.6; // луч убирается
 export const PROJECTOR_TOTAL = RETRACT;
-/** Момент, с которого начинается уход: сюда перематывают, когда просят закрыть. */
-export const PROJECTOR_HOLD_END = HOLD_END;
 /** Момент, когда луч уже поднят: сюда перематывают при смене кадра. */
 export const PROJECTOR_SWAP_AT = RISE - 0.3;
 
@@ -52,13 +50,22 @@ export function drawProjector(
   image: ProjectorImage | null,
   token: number,
   reducedMotion: boolean,
+  /**
+   * Множитель схлопывания, 1..0.
+   *
+   * Когда прокат закрывают свайпом, ждать честного ухода луча незачем: он
+   * длится две секунды и выглядит так, будто жест не сработал. Здесь всё
+   * гаснет за треть секунды — и луч, и фотография разом.
+   */
+  collapse = 1,
 ) {
+  if (collapse <= 0.001) return;
   const { lens, size } = projectorMetrics(w, h);
 
   // Луч поднимается в начале и убирается в конце.
   const rise = easeOut(clamp01(e / RISE));
   const retract = 1 - easeOut(clamp01((e - FADE_OUT) / (RETRACT - FADE_OUT)));
-  const beamLen = reducedMotion ? 1 : Math.min(rise, retract);
+  const beamLen = (reducedMotion ? 1 : Math.min(rise, retract)) * collapse;
   if (beamLen <= 0.001) return;
 
   // Медленный проход по небу — только пока фото висит.
@@ -87,7 +94,8 @@ export function drawProjector(
   // Фото проявляется и гаснет.
   const photoAlpha =
     easeOut(clamp01((e - (RISE - 0.3)) / FADE_IN)) *
-    (1 - easeOut(clamp01((e - HOLD_END) / (FADE_OUT - HOLD_END))));
+    (1 - easeOut(clamp01((e - HOLD_END) / (FADE_OUT - HOLD_END)))) *
+    collapse;
 
   if (image && photoAlpha > 0.001) {
     drawProjection(ctx, image, tip, discR * 0.92, photoAlpha);

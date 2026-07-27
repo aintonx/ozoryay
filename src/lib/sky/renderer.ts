@@ -1,17 +1,29 @@
 import { COMET_DURATION, drawComet } from "./comet";
 import { DAWN_HOLD_END, dawnRise, drawDawn } from "./dawn";
 import { LAYOUT, glowXFromBearing, groundYAt } from "./layout";
-import { drawFaintStars, drawGroundHaze, drawMilkyWay } from "./milkyway";
+import {
+  drawFaintStars,
+  drawGroundHaze,
+  drawMilkyWay,
+  makeLiveFaintStars,
+  type FaintStar,
+} from "./milkyway";
 import { makeMoonSprite } from "./moon";
 import { drawRealSky, moonOnScreen, type Observer, type RealSkyView } from "./realsky";
 import {
   drawProjector,
-  PROJECTOR_HOLD_END,
   PROJECTOR_SWAP_AT,
   PROJECTOR_TOTAL,
   type ProjectorImage,
 } from "./projector";
-import { DayStar, makeDayStars, makeStarSprite, STAR_TINTS, withAlpha } from "./stars";
+import {
+  DayStar,
+  makeDayStars,
+  makeStarSprite,
+  STAR_TINTS,
+  twinkleAt,
+  withAlpha,
+} from "./stars";
 import { drawTerrain } from "./terrain";
 
 export const PALETTE = {
@@ -83,6 +95,8 @@ export interface SkyOptions {
 
 /** Сколько длится рождение звезды, секунд. */
 const BIRTH_S = 6;
+/** За сколько миллисекунд схлопывается прожектор, если его закрыли свайпом. */
+const COLLAPSE_MS = 320;
 
 export interface SkyHandle {
   destroy(): void;
@@ -101,6 +115,10 @@ export function createSky(canvas: HTMLCanvasElement, initial: SkyOptions): SkyHa
 
   let stars: DayStar[] = [];
   let buckets: number[] = []; // индекс спрайта для каждой звезды
+  // Заметная часть далёкой россыпи. Живёт в кадре, а не в фоне: без неё на
+  // небе дышали бы только два-три десятка звёзд-дней, и всё остальное
+  // читалось бы как неподвижная картинка.
+  let faint: FaintStar[] = [];
   let sprites: HTMLCanvasElement[] = [];
   let backdrop: HTMLCanvasElement | null = null; // градиент неба и зарево
   let ground: HTMLCanvasElement | null = null; // силуэт с прожектором
@@ -124,6 +142,7 @@ export function createSky(canvas: HTMLCanvasElement, initial: SkyOptions): SkyHa
   let projToken = initial.projectorToken;
   let projCancel = initial.projectorCancel;
   let projStart = -Infinity;
+  let projCollapseAt = -Infinity;
   let projDoneFired = true;
   let cometToken = initial.cometToken;
   let cometStart = -Infinity;
@@ -238,6 +257,7 @@ export function createSky(canvas: HTMLCanvasElement, initial: SkyOptions): SkyHa
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     buildStars();
+    faint = makeLiveFaintStars(w, h, groundYAt, STAR_TINTS);
     buildBackdrop();
     buildGround();
     buildRealSky(performance.now());
@@ -271,21 +291,24 @@ export function createSky(canvas: HTMLCanvasElement, initial: SkyOptions): SkyHa
       // тот момент, где он стоит и начинает проявлять фотографию.
       projStart = wasRunning ? now - PROJECTOR_SWAP_AT * 1000 : now;
       projE = wasRunning ? PROJECTOR_SWAP_AT : 0;
+      projCollapseAt = -Infinity;
       projDoneFired = false;
     } else if (opts.projectorCancel !== projCancel) {
       projCancel = opts.projectorCancel;
-      // Попросили закрыть — перематываем в фазу ухода. Луч убирается сам,
-      // как в конце обычного проката, и ничто не пропадает рывком.
-      if (wasRunning && projE < PROJECTOR_HOLD_END) {
-        projStart = now - PROJECTOR_HOLD_END * 1000;
-        projE = PROJECTOR_HOLD_END;
-      }
+      // Попросили закрыть — схлопываем сразу. Честный уход луча занимает две
+      // секунды, и после свайпа это читается как «не сработало».
+      if (wasRunning) projCollapseAt = now;
     }
-    const projActive = projE >= 0 && projE <= PROJECTOR_TOTAL;
+
+    // Схлопывание: за COLLAPSE_MS всё гаснет и прокат считается законченным.
+    const collapse =
+      projCollapseAt === -Infinity ? 1 : 1 - clamp01((now - projCollapseAt) / COLLAPSE_MS);
+    const projActive = projE >= 0 && projE <= PROJECTOR_TOTAL && collapse > 0.001;
     // Пока горит прожектор, всё вокруг притухает — как при раскрытии письма.
     // Огибающая повторяет луч: растёт с подъёмом, спадает при убирании.
     const projDim = projActive
-      ? Math.min(easeOut(clamp01(projE / 1.4)), easeOut(clamp01((PROJECTOR_TOTAL - projE) / 1.0)))
+      ? Math.min(easeOut(clamp01(projE / 1.4)), easeOut(clamp01((PROJECTOR_TOTAL - projE) / 1.0))) *
+        collapse
       : 0;
 
     if (opts.cometToken !== cometToken) {
@@ -313,11 +336,30 @@ export function createSky(canvas: HTMLCanvasElement, initial: SkyOptions): SkyHa
       }
     }
 
+    // Далёкая россыпь: колышется вся разом, но каждая точка в своём ритме.
+    if (!opts.reducedMotion) {
+      for (const f of faint) {
+        const a = f.alpha * twinkleAt(t, f.period, f.phase, f.amp);
+        if (a <= 0.01) continue;
+        ctx.beginPath();
+        ctx.arc(f.x, f.y, f.r, 0, TAU);
+        ctx.fillStyle = withAlpha(f.tint, Math.min(1, a));
+        ctx.fill();
+      }
+    } else {
+      for (const f of faint) {
+        ctx.beginPath();
+        ctx.arc(f.x, f.y, f.r, 0, TAU);
+        ctx.fillStyle = withAlpha(f.tint, f.alpha);
+        ctx.fill();
+      }
+    }
+
     // Звёзды-дни.
     for (let i = 0; i < stars.length; i++) {
       const s = stars[i];
       // Дрейф прозрачности, а не моргание: это должно читаться как воздух.
-      const tw = opts.reducedMotion ? 1 : 1 + 0.12 * Math.sin((t / s.period) * TAU + s.phase);
+      const tw = opts.reducedMotion ? 1 : twinkleAt(t, s.period, s.phase, s.amp);
       let alpha = (0.3 + s.mag * 0.62) * tw;
       let scale = 1;
 
@@ -395,7 +437,7 @@ export function createSky(canvas: HTMLCanvasElement, initial: SkyOptions): SkyHa
     // Прожектор поверх заслонки: луч рождается из линзы на холме, фото
     // проецируется в дымку выше. Пока он горит, всё вокруг в тени.
     if (projActive) {
-      drawProjector(ctx, w, h, projE, opts.projectorImage, projToken, opts.reducedMotion);
+      drawProjector(ctx, w, h, projE, opts.projectorImage, projToken, opts.reducedMotion, collapse);
     } else if (!projDoneFired) {
       projDoneFired = true;
       opts.onProjectorDone?.();

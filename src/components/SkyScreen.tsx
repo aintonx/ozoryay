@@ -29,7 +29,7 @@ export default function SkyScreen({ onSpark, hint, onBack }: SkyScreenProps) {
           if (e.detail > 0) e.currentTarget.blur();
           onBack();
         }}
-        className="font-system caption pointer-events-auto mx-auto flex items-center gap-[0.35em] text-[10.5px] tracking-[0.06em] text-star/45 transition-colors hover:text-star/70"
+        className="font-system caption pointer-events-auto mx-auto flex items-center gap-[0.4em] text-[12px] font-medium tracking-[0.05em] text-star transition-opacity duration-300 hover:opacity-80"
       >
         <IconChevronUp size={13} className="rotate-180" />
         смахни вниз

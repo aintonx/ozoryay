@@ -143,7 +143,7 @@ export default function HomeScreen({
             if (e.detail > 0) e.currentTarget.blur();
             onOpenSky();
           }}
-          className="font-system caption mx-auto mt-[1.1rem] flex items-center gap-[0.35em] text-[10.5px] tracking-[0.06em] text-star/45 transition-colors hover:text-star/70"
+          className="font-system caption mx-auto mt-[1.1rem] flex items-center gap-[0.4em] text-[12px] font-medium tracking-[0.05em] text-star transition-opacity duration-300 hover:opacity-80"
         >
           <IconChevronUp size={13} />
           смахни вверх

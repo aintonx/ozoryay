@@ -20,6 +20,14 @@ import { useSeparationCounter } from "@/lib/time/useSeparationDays";
 
 /** Сколько держится текст вспышки, если её не закрыли раньше. */
 const SPARK_MS = 9000;
+/**
+ * Пауза между вспышками.
+ *
+ * Одна звезда должна догореть, прежде чем разгорится следующая: подмена
+ * текста на месте выглядит как перелистывание списка, а не как небо.
+ * Совпадает со временем, за которое гаснет свеча вокруг звезды.
+ */
+const HANDOVER_MS = 460;
 /** Сколько висит подсказка. */
 const HINT_MS = 5600;
 /** Пока летит поцелуй, кнопка ждёт. */
@@ -64,17 +72,19 @@ interface Spark {
  */
 export default function Night({ settings, letters }: NightProps) {
   const counter = useSeparationCounter(settings.separationStart, settings.herTimezone);
-  const observer = useObserver({
-    lat: settings.herLat,
-    lon: settings.herLon,
-    city: settings.herCity,
-  });
+  const where = useMemo(
+    () => ({ lat: settings.herLat, lon: settings.herLon, city: settings.herCity }),
+    [settings.herLat, settings.herLon, settings.herCity],
+  );
+  const observer = useObserver(where);
   const reducedMotion = useReducedMotion();
   const { takeNext } = useMemories();
 
   const [screen, setScreen] = useState<ScreenIndex>(0);
   const [intro, setIntro] = useState(true);
   const [spark, setSpark] = useState<Spark | null>(null);
+  /** Горящая звезда уходит: слова тают, свеча гаснет, следующая ждёт. */
+  const [leaving, setLeaving] = useState(false);
   // Отговорившие звёзды остаются в небе тёплым следом: за вечер оно
   // потихоньку заселяется тем, что мы друг другу сказали.
   const [lit, setLit] = useState<Array<{ id: number; x: number; y: number }>>([]);
@@ -92,6 +102,7 @@ export default function Night({ settings, letters }: NightProps) {
   const sparkTimer = useRef<number | undefined>(undefined);
   const dialogCount = useRef(0);
   const hintSeen = useRef(false);
+  const projectorRun = useRef(0);
 
   useEffect(() => {
     const pending = timers.current;
@@ -131,6 +142,7 @@ export default function Night({ settings, letters }: NightProps) {
   const showSpark = useCallback(
     (s: Spark) => {
       window.clearTimeout(sparkTimer.current);
+      setLeaving(false);
       setSpark(s);
       // Одна и та же звезда не заводится дважды: письма приходят со своими
       // номерами, и после нового круга колоды позиция бы просто задвоилась.
@@ -153,6 +165,7 @@ export default function Night({ settings, letters }: NightProps) {
   );
 
   const runProjector = useCallback(() => {
+    projectorRun.current += 1;
     setSpark(null);
     setProjectorPlaying(true);
     void takeNext().then((image) => {
@@ -202,18 +215,41 @@ export default function Night({ settings, letters }: NightProps) {
   const dismiss = useCallback(() => {
     if (spark) {
       window.clearTimeout(sparkTimer.current);
+      setLeaving(false);
       setSpark(null);
     }
-    // Прожектор не гасим рывком: небо само доводит луч до конца и сообщит
-    // об этом через onProjectorDone — тогда и вернётся интерфейс.
-    if (projectorPlaying) setProjector((p) => ({ ...p, cancel: p.cancel + 1 }));
-  }, [spark, projectorPlaying]);
+    if (projectorPlaying) {
+      setProjector((p) => ({ ...p, cancel: p.cancel + 1 }));
+      // Обычно об окончании сообщает само небо. Но если вкладка была свёрнута
+      // и кадры не шли, сообщать некому — а интерфейс должен вернуться в
+      // любом случае, иначе экран остаётся пустым навсегда.
+      const run = projectorRun.current;
+      later(() => {
+        if (projectorRun.current === run) setProjectorPlaying(false);
+      }, 520);
+    }
+  }, [spark, projectorPlaying, later]);
 
-  /** Показать следующее того же рода, не закрывая текущее. */
+  /**
+   * Показать следующее того же рода.
+   *
+   * Не подменяет текст на месте: сначала гаснет горящая звезда вместе со
+   * своими словами, и только потом разгорается новая. Полсекунды тишины —
+   * это и есть вся разница между «небом» и «списком».
+   */
   const next = useCallback(() => {
-    if (projectorPlaying) runProjector();
-    else if (spark) onSpark(spark.kind);
-  }, [projectorPlaying, runProjector, spark, onSpark]);
+    if (projectorPlaying) {
+      runProjector();
+      return;
+    }
+    if (!spark || leaving) return;
+    const kind = spark.kind;
+    setLeaving(true);
+    later(() => {
+      setLeaving(false);
+      onSpark(kind);
+    }, HANDOVER_MS);
+  }, [projectorPlaying, runProjector, spark, leaving, later, onSpark]);
 
   const onProjectorDone = useCallback(() => setProjectorPlaying(false), []);
   const onIntroDone = useCallback(() => setIntro(false), []);
@@ -252,7 +288,7 @@ export default function Night({ settings, letters }: NightProps) {
         observer={observer}
         letters={skyLetters}
         chains={[]}
-        openId={spark?.id ?? null}
+        openId={leaving ? null : (spark?.id ?? null)}
         hintId={null}
         obsessionId={null}
         birthNight={null}
@@ -292,6 +328,7 @@ export default function Night({ settings, letters }: NightProps) {
           author={spark.author}
           date={spark.date}
           voice={spark.voice}
+          leaving={leaving}
           reducedMotion={reducedMotion}
         />
       )}
