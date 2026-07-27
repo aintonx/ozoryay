@@ -2,8 +2,16 @@ import { EMOJI_FONT, KISS } from "../emoji";
 import { glowXFromBearing } from "./layout";
 import { withAlpha } from "./stars";
 
-const AMBER = "#F2C57C";
-const AMBER_HOT = "#FFE3B0";
+/**
+ * Комета светит красным, а не амбером.
+ *
+ * Единственное отступление от палитры на всём сайте — и оно вынужденное:
+ * голова кометы это отпечаток губ, он красный, и амберный шлейф за красной
+ * головой смотрелся склейкой из двух разных картинок. Цвета взяты из
+ * самого эмодзи, поэтому хвост читается как свет от него.
+ */
+const RED = "#E24A55";
+const RED_HOT = "#FF8A90";
 
 /** Сколько длится падение кометы, секунд. */
 export const COMET_DURATION = 2.4;
@@ -108,7 +116,7 @@ export function drawComet(
     const a = pts[i];
     const b = pts[i + 1];
     if (!a.live && !b.live) continue;
-    g.strokeStyle = withAlpha(a.f < 0.28 ? AMBER_HOT : AMBER, (1 - a.f) * (1 - a.f) * 0.6);
+    g.strokeStyle = withAlpha(a.f < 0.28 ? RED_HOT : RED, (1 - a.f) * (1 - a.f) * 0.6);
     g.lineWidth = Math.max(0.8, (1 - a.f) * unit * 0.007);
     g.beginPath();
     g.moveTo(a.x, a.y);
@@ -117,16 +125,14 @@ export function drawComet(
   }
 
   // Ореол вокруг головы — он и уходит в общее размытие вместе с хвостом.
-  // Сам отпечаток заметно крупнее искры: на десяти пикселях узнать в нём
-  // поцелуй невозможно, а узнать надо.
-  const hr = Math.min(30, Math.max(13, unit * 0.045));
-  const glowR = hr * 1.6;
+  // Размер головы: узнать поцелуй надо, но и комета должна оставаться
+  // кометой, а не летящей наклейкой во весь экран.
+  const hr = Math.min(15, Math.max(8, unit * 0.026));
+  const glowR = hr * 2.2;
   const glow = g.createRadialGradient(hx, hy, 0, hx, hy, glowR);
-  // Ядро приглушено и уже самого отпечатка: на ярком пятне он перестаёт
-  // читаться, а читаться он обязан — ради него всё и затевалось.
-  glow.addColorStop(0, withAlpha(AMBER, 0.34));
-  glow.addColorStop(0.42, withAlpha(AMBER, 0.2));
-  glow.addColorStop(1, withAlpha(AMBER, 0));
+  glow.addColorStop(0, withAlpha(RED_HOT, 0.5));
+  glow.addColorStop(0.4, withAlpha(RED, 0.26));
+  glow.addColorStop(1, withAlpha(RED, 0));
   g.fillStyle = glow;
   g.fillRect(hx - glowR, hy - glowR, glowR * 2, glowR * 2);
   g.restore();
@@ -139,21 +145,23 @@ export function drawComet(
   ctx.filter = "none";
   ctx.restore();
 
-  // Сам отпечаток — поверх размытия и без него. Под общим блюром он
-  // превращался в светлую кляксу, и понять, что это поцелуй, было нельзя;
-  // а понять надо, иначе за горизонт улетает просто камень.
+  // Сам отпечаток — поверх общего размытия, но со своим, слабым: без него
+  // резкий глиф лежит на мягком шлейфе наклейкой, с полным — превращается
+  // в кляксу, и понять, что это поцелуй, уже нельзя.
   //
   // Складывать его свет с фоном («lighter») тоже нельзя: цветной глиф от
   // этого выцветает добела. Кладём как есть.
   ctx.save();
-  ctx.globalAlpha = alpha;
+  ctx.globalAlpha = alpha * 0.92;
+  ctx.filter = `blur(${Math.max(0.6, hr * 0.055)}px)`;
   ctx.translate(hx, hy);
   ctx.rotate(course);
   // Отражение по горизонтали: после него вперёд по курсу смотрит левый
   // уголок губ — он и работает носом ракеты, а верх отпечатка остаётся
   // верхом. Без отражения вперёд шёл бы правый край, хвостом вперёд.
   ctx.scale(-1, 1);
-  drawKissMark(ctx, hr * 2.6);
+  drawKissMark(ctx, hr * 2.2);
+  ctx.filter = "none";
   ctx.restore();
 }
 

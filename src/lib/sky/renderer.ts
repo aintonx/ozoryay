@@ -1,13 +1,7 @@
 import { COMET_DURATION, drawComet } from "./comet";
-import { DAWN_HOLD_END, dawnRise, drawDawn } from "./dawn";
-import { LAYOUT, glowXFromBearing, groundYAt } from "./layout";
-import {
-  drawFaintStars,
-  drawGroundHaze,
-  drawMilkyWay,
-  makeLiveFaintStars,
-  type FaintStar,
-} from "./milkyway";
+import { dawnRise, drawDawn } from "./dawn";
+import { LAYOUT, clipToSky, glowXFromBearing, groundYAt } from "./layout";
+import { drawFaintStars, drawMilkyWay, makeLiveFaintStars, type FaintStar } from "./milkyway";
 import { makeMoonSprite } from "./moon";
 import { drawRealSky, moonOnScreen, type Observer, type RealSkyView } from "./realsky";
 import {
@@ -97,6 +91,8 @@ export interface SkyOptions {
 const BIRTH_S = 6;
 /** За сколько миллисекунд схлопывается прожектор, если его закрыли свайпом. */
 const COLLAPSE_MS = 320;
+/** За сколько уходит солнце, если вступление смахнули. */
+const DAWN_CUT_MS = 420;
 
 export interface SkyHandle {
   destroy(): void;
@@ -148,8 +144,8 @@ export function createSky(canvas: HTMLCanvasElement, initial: SkyOptions): SkyHa
   let cometStart = -Infinity;
   // Если небо создано уже после вступления, восхода не было вовсе:
   // бесконечность в прошлом даёт нулевой подъём с первого же кадра.
-  let dawnStart = initial.dawn ? start : -Infinity;
-  let dawnCut = !initial.dawn;
+  const dawnStart = initial.dawn ? start : -Infinity;
+  let dawnCutAt = initial.dawn ? Infinity : -Infinity;
 
   function layer(): [HTMLCanvasElement, CanvasRenderingContext2D] {
     const c = document.createElement("canvas");
@@ -177,8 +173,9 @@ export function createSky(canvas: HTMLCanvasElement, initial: SkyOptions): SkyHa
     drawMilkyWay(cx, w, h, PALETTE.star);
     drawFaintStars(cx, w, h, groundYAt, STAR_TINTS);
     drawGlow(cx, w, h, glowXFromBearing(opts.bearingDeg), opts.days);
-    // Дымка у земли: воздух между небом и силуэтом.
-    drawGroundHaze(cx, w, h, LAYOUT.groundY * h, PALETTE.horizon);
+    // Дымки у земли здесь больше нет. Она задумывалась как воздух между
+    // небом и силуэтом, но ложилась ровной полосой во всю ширину и читалась
+    // как вторая, дальняя линия горизонта — лишняя и неуклюжая.
     applyDither(cx);
     backdrop = c;
   }
@@ -409,17 +406,13 @@ export function createSky(canvas: HTMLCanvasElement, initial: SkyOptions): SkyHa
 
     // Восход — после звёзд и до земли. Солнце гасит собой звёзды, а деревья
     // и крыши остаются перед ним: они ближе.
-    let dawnE = (now - dawnStart) / 1000;
-    if (!opts.dawn && !dawnCut) {
-      dawnCut = true;
-      // Убрали досрочно — солнце не пропадает рывком, а уходит за хребет.
-      if (dawnE < DAWN_HOLD_END) {
-        dawnStart = now - DAWN_HOLD_END * 1000;
-        dawnE = DAWN_HOLD_END;
-      }
-    }
+    const dawnE = (now - dawnStart) / 1000;
+    if (!opts.dawn && dawnCutAt === Infinity) dawnCutAt = now;
+    // Убрали досрочно — уходит быстро и целиком. Медленный уход после
+    // жеста читается как «не сработало», а следом уже едут виджеты.
+    const cut = dawnCutAt === Infinity ? 1 : 1 - clamp01((now - dawnCutAt) / DAWN_CUT_MS);
     // При выключенном движении солнце просто стоит, пока идёт вступление.
-    const rise = opts.reducedMotion && opts.dawn ? 1 : dawnRise(dawnE);
+    const rise = (opts.reducedMotion && opts.dawn ? 1 : dawnRise(dawnE)) * cut;
     drawDawn(ctx, w, h, rise, opts.bearingDeg);
 
     if (ground) ctx.drawImage(ground, 0, 0, w, h);
@@ -661,9 +654,7 @@ function drawGlow(ctx: CanvasRenderingContext2D, w: number, h: number, xFrac: nu
   const a = Math.min(0.3, 0.15 + days * 0.00042);
 
   ctx.save();
-  ctx.beginPath();
-  ctx.rect(0, 0, w, gy);
-  ctx.clip();
+  clipToSky(ctx, w, h);
 
   // Холодная широкая подложка — даёт зареву глубину, а не плоское пятно.
   paint(gw * 0.72, gh * 1.7, PALETTE.horizon, a);

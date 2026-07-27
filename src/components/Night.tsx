@@ -81,7 +81,14 @@ export default function Night({ settings, letters }: NightProps) {
   const { takeNext } = useMemories();
 
   const [screen, setScreen] = useState<ScreenIndex>(0);
-  const [intro, setIntro] = useState(true);
+  /**
+   * Вступление: 0 — идёт, 1 — уходит, 2 — кончилось.
+   *
+   * Две ступени, а не одна: по первой канвас начинает убирать солнце, по
+   * второй выезжают виджеты. Если выпускать их сразу, они наезжают на ещё
+   * горящий свет и спорят с ним за середину экрана.
+   */
+  const [intro, setIntro] = useState<0 | 1 | 2>(0);
   const [spark, setSpark] = useState<Spark | null>(null);
   /** Горящая звезда уходит: слова тают, свеча гаснет, следующая ждёт. */
   const [leaving, setLeaving] = useState(false);
@@ -252,7 +259,8 @@ export default function Night({ settings, letters }: NightProps) {
   }, [projectorPlaying, runProjector, spark, leaving, later, onSpark]);
 
   const onProjectorDone = useCallback(() => setProjectorPlaying(false), []);
-  const onIntroDone = useCallback(() => setIntro(false), []);
+  const onIntroLeave = useCallback(() => setIntro(1), []);
+  const onIntroDone = useCallback(() => setIntro(2), []);
 
   const onKiss = useCallback(() => {
     if (kissInFlight) return;
@@ -278,7 +286,7 @@ export default function Night({ settings, letters }: NightProps) {
 
   const showing = spark !== null || projectorPlaying;
   // Интерфейс уходит с глаз на всё, ради чего стоит смотреть на небо.
-  const veiled = intro || showing || kissInFlight;
+  const veiled = intro !== 2 || showing || kissInFlight;
 
   return (
     <>
@@ -297,7 +305,7 @@ export default function Night({ settings, letters }: NightProps) {
         projectorCancel={projector.cancel}
         onProjectorDone={onProjectorDone}
         cometToken={kissToken}
-        dawn={intro}
+        dawn={intro === 0}
         reducedMotion={reducedMotion}
       />
 
@@ -341,7 +349,11 @@ export default function Night({ settings, letters }: NightProps) {
       />
 
       {/* Снимает себя сам: свет уже пошёл на убыль, а строка ещё уезжает. */}
-      <TitleDawn bearingDeg={settings.bearingDeg} onDone={onIntroDone} />
+      <TitleDawn
+        bearingDeg={settings.bearingDeg}
+        onLeave={onIntroLeave}
+        onDone={onIntroDone}
+      />
     </>
   );
 }

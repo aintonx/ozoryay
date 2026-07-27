@@ -179,22 +179,3 @@ function walkFaintStars(
   }
 }
 
-/**
- * Тонкий слой дымки у самой земли. Даёт воздух между небом и силуэтом —
- * без него холмы выглядят наклейкой поверх фона.
- */
-export function drawGroundHaze(
-  ctx: CanvasRenderingContext2D,
-  w: number,
-  h: number,
-  horizonY: number,
-  color: string,
-) {
-  const top = horizonY - h * 0.1;
-  const g = ctx.createLinearGradient(0, top, 0, horizonY + h * 0.02);
-  g.addColorStop(0, withAlpha(color, 0));
-  g.addColorStop(0.55, withAlpha(color, 0.035));
-  g.addColorStop(1, withAlpha(color, 0.07));
-  ctx.fillStyle = g;
-  ctx.fillRect(0, top, w, horizonY - top + h * 0.02);
-}

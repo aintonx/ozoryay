@@ -116,16 +116,20 @@ body {
   animation: title-dawn 10000ms both;
 }
 
-/* Досрочный уход: строка уезжает за холмы отсюда же, где её застали. */
+/*
+ * Досрочный уход: строка уезжает за холмы отсюда же, где её застали.
+ * Быстро — за то же время, за какое уходит солнце на канвасе, и раньше,
+ * чем на экран выедут виджеты.
+ */
 @keyframes title-set {
   to {
-    transform: translateY(38dvh);
+    transform: translateY(30dvh);
     opacity: 0;
   }
 }
 
 .title-set {
-  animation: title-set 2600ms cubic-bezier(0.5, 0, 0.82, 0.46) both;
+  animation: title-set 420ms cubic-bezier(0.5, 0, 0.82, 0.46) both;
 }
 
 /*

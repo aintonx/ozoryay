@@ -1,4 +1,4 @@
-import { glowXFromBearing, groundYAt } from "./layout";
+import { clipToSky, glowXFromBearing, groundYAt } from "./layout";
 import { withAlpha } from "./stars";
 
 const AMBER = "#F2C57C";
@@ -55,11 +55,9 @@ export function drawDawn(
   const y = ground + (1 - rise) * h * 0.3;
 
   ctx.save();
-  // Всё, что ниже линии холмов, всё равно закроет силуэт земли, но клип
-  // избавляет от лишней заливки на полэкрана в каждом кадре.
-  ctx.beginPath();
-  ctx.rect(0, 0, w, ground + 2);
-  ctx.clip();
+  // Свет обрезается по самому профилю холмов. Прямая на высоте горизонта
+  // оставляла бы под собой полосу без света во всю ширину экрана.
+  clipToSky(ctx, w, h);
 
   // Высокий слабый отсвет: небо над рассветом.
   paint(x, y, w * 0.75, h * 0.31, [

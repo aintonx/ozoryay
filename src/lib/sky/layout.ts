@@ -93,6 +93,26 @@ export function projectorMetrics(w: number, h: number) {
   };
 }
 
+/**
+ * Обрезать всё, что ниже линии земли.
+ *
+ * Именно по профилю холмов, а не по прямой на высоте горизонта. Прямая
+ * оставляла между собой и настоящей землёй полосу без света — ровную,
+ * во всю ширину экрана, и она читалась как вторая, дальняя линия горизонта.
+ */
+export function clipToSky(ctx: CanvasRenderingContext2D, w: number, h: number) {
+  const steps = Math.max(90, Math.ceil(w / 5));
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(w, 0);
+  for (let i = steps; i >= 0; i--) {
+    const t = i / steps;
+    ctx.lineTo(t * w, groundYAt(t) * h + 1);
+  }
+  ctx.closePath();
+  ctx.clip();
+}
+
 /** Горизонтальная позиция зарева из азимута на её город. */
 export function glowXFromBearing(bearingDeg: number): number {
   // Горизонт — панорама в 180°, центр которой смотрит на юг.

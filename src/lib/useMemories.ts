@@ -5,44 +5,49 @@ import type { ProjectorImage } from "@/lib/sky/projector";
 
 interface ManifestEntry {
   src: string;
-  w: number;
-  h: number;
+  kind: "image" | "video";
 }
 
 /**
  * Колода воспоминаний для прожектора.
  *
+ * Список файлов собирает сборка (scripts/memories-manifest.mjs), поэтому
+ * добавить воспоминание — значит положить файл в public/memories и
+ * закоммитить: ни здесь, ни где-либо ещё код менять не нужно.
+ *
  * Порядок — shuffle bag: тасуем весь список и раздаём по одному без повторов,
  * пока колода не кончится, потом тасуем заново. Так одно и то же фото не
  * выпадет дважды подряд и каждое покажется, прежде чем повторится.
  *
- * Картинки грузятся лениво и кэшируются: 3.7 МБ целиком тянуть незачем, но
- * первое фото подгружаем заранее — автозапуск на четвёртой секунде должен
- * успеть.
+ * Файлы грузятся лениво и кэшируются: тянуть всю папку разом незачем, но
+ * первое воспоминание подгружаем заранее — прожектор не должен ждать.
  */
 export function useMemories() {
   const manifest = useRef<ManifestEntry[]>([]);
   const bag = useRef<number[]>([]);
   const cache = useRef<Map<number, ProjectorImage>>(new Map());
   const ready = useRef(false);
+  /** Видео, которое идёт прямо сейчас: следующее его останавливает. */
+  const playing = useRef<HTMLVideoElement | null>(null);
 
   useEffect(() => {
     let alive = true;
     // Путь относительный: сайт живёт и в корне домена, и в подпапке на github.io.
-    fetch("memories/manifest.json", { cache: "force-cache" })
+    fetch("memories/manifest.json", { cache: "no-cache" })
       .then((r) => (r.ok ? r.json() : []))
       .then((list: ManifestEntry[]) => {
         if (!alive || !Array.isArray(list) || list.length === 0) return;
         manifest.current = list;
         ready.current = true;
-        // Подготовить первое фото заранее — под автозапуск.
+        // Подготовить первое воспоминание заранее.
         void load(peek());
       })
       .catch(() => {
-        // Нет манифеста — прожектор просто не покажет фото, механика цела.
+        // Нет описи — прожектор просто не покажет ничего, механика цела.
       });
     return () => {
       alive = false;
+      playing.current?.pause();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -57,7 +62,7 @@ export function useMemories() {
     bag.current = idx;
   }
 
-  /** Индекс следующего фото, не вынимая из колоды. */
+  /** Индекс следующего воспоминания, не вынимая из колоды. */
   function peek(): number {
     if (bag.current.length === 0) refill();
     return bag.current[bag.current.length - 1] ?? 0;
@@ -70,24 +75,55 @@ export function useMemories() {
     if (cached) return Promise.resolve(cached);
 
     return new Promise((resolve) => {
-      const img = new Image();
-      img.decoding = "async";
-      img.onload = () => {
-        const item: ProjectorImage = { el: img, w: entry.w, h: entry.h };
+      const done = (item: ProjectorImage) => {
         cache.current.set(index, item);
         resolve(item);
       };
+
+      if (entry.kind === "video") {
+        const v = document.createElement("video");
+        // Без звука и «в потоке» — иначе телефон откажется играть сам,
+        // а на весь сайт нет ни одного звука и быть не должно.
+        v.muted = true;
+        v.defaultMuted = true;
+        v.loop = true;
+        v.playsInline = true;
+        v.preload = "auto";
+        v.onloadeddata = () => done({ el: v, w: v.videoWidth, h: v.videoHeight });
+        v.onerror = () => resolve(null);
+        v.src = entry.src;
+        return;
+      }
+
+      const img = new Image();
+      img.decoding = "async";
+      img.onload = () => done({ el: img, w: img.naturalWidth, h: img.naturalHeight });
       img.onerror = () => resolve(null);
       img.src = entry.src;
     });
   }
 
-  /** Следующее фото: вынимает из колоды и подгружает следующее наперёд. */
+  /** Следующее воспоминание: вынимает из колоды и подгружает следующее наперёд. */
   const takeNext = useCallback(async (): Promise<ProjectorImage | null> => {
     if (!ready.current) return null;
     if (bag.current.length === 0) refill();
     const index = bag.current.pop() ?? 0;
     const item = await load(index);
+
+    // Предыдущий ролик останавливаем: он крутится в петле и без остановки
+    // будет молотить кадры до конца вечера.
+    if (playing.current && playing.current !== item?.el) {
+      playing.current.pause();
+      playing.current = null;
+    }
+    if (item?.el instanceof HTMLVideoElement) {
+      playing.current = item.el;
+      item.el.currentTime = 0;
+      void item.el.play().catch(() => {
+        // Не дали играть — прожектор покажет первый кадр, и на том спасибо.
+      });
+    }
+
     // Прогреть следующее, пока текущее показывается.
     void load(peek());
     return item;

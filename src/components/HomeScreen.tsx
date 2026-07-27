@@ -116,7 +116,7 @@ export default function HomeScreen({
             layout="tile"
             icon={<IconKiss />}
             label="Отправить поцелуй"
-            hint={kissInFlight ? "летит ко мне…" : "он улетит за горизонт"}
+            hint={kissInFlight ? "летит ко мне…" : "он улетит за горизонт ко мне"}
             onClick={onKiss}
             disabled={kissInFlight}
           />
