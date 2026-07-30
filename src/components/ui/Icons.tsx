@@ -131,6 +131,18 @@ export function IconChevronUp({ className, size }: IconProps) {
   );
 }
 
+/** Люди: заголовок виджета подписчиков. Двое, второй чуть позади. */
+export function IconPeople({ className, size }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <circle cx="10" cy="8.4" r="3.4" />
+      <path d="M3.8 19.4c0-3.1 2.8-5.2 6.2-5.2s6.2 2.1 6.2 5.2" />
+      <path d="M16.4 5.6a3.4 3.4 0 0 1 0 5.6" />
+      <path d="M18.2 14.8c1.4.8 2.3 2 2.3 3.6" />
+    </svg>
+  );
+}
+
 /** Часы: заголовок виджета времени. */
 export function IconClock({ className, size }: IconProps) {
   return (

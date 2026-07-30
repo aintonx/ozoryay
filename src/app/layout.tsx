@@ -35,9 +35,57 @@ const jetbrains = JetBrains_Mono({
   display: "swap",
 });
 
+const TITLE = "Озоряй";
+const DESCRIPTION = "Ты озоряешь мою жизнь, принцесса";
+
+/**
+ * Тот же префикс, что в next.config: на своём домене пустой, на адресе вида
+ * aintonx.github.io/ozoryay — «/ozoryay». Значки лежат в public и потому
+ * префикс к ним нужно приписать руками.
+ */
+const base = process.env.BASE_PATH ?? "";
+
 export const metadata: Metadata = {
-  title: "Озоряй",
-  description: "Ты озоряешь мою жизнь, принцесса",
+  // Нужен, чтобы относительные пути картинок превратились в абсолютные:
+  // телеграм и все прочие показывают превью только по полному адресу.
+  metadataBase: new URL("https://ozoryay.space"),
+  title: TITLE,
+  description: DESCRIPTION,
+  applicationName: TITLE,
+  icons: {
+    // Первым идёт svg: он один остаётся резким на любом экране и в любом
+    // размере, png — запасной вариант для тех, кто svg в значках не умеет.
+    icon: [
+      { url: `${base}/icon.svg`, type: "image/svg+xml" },
+      { url: `${base}/icon-32.png`, sizes: "32x32", type: "image/png" },
+      { url: `${base}/icon-192.png`, sizes: "192x192", type: "image/png" },
+    ],
+    apple: `${base}/apple-touch-icon.png`,
+    shortcut: `${base}/favicon.ico`,
+  },
+  manifest: `${base}/site.webmanifest`,
+  openGraph: {
+    type: "website",
+    locale: "ru_RU",
+    url: "https://ozoryay.space",
+    siteName: TITLE,
+    title: TITLE,
+    description: DESCRIPTION,
+    images: [
+      { url: `${base}/og.png`, width: 1200, height: 630, alt: "Рассвет над холмами", type: "image/png" },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: TITLE,
+    description: DESCRIPTION,
+    images: [`${base}/og.png`],
+  },
+  appleWebApp: {
+    capable: true,
+    title: TITLE,
+    statusBarStyle: "black-translucent",
+  },
 };
 
 export const viewport: Viewport = {

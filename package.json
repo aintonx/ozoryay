@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "icons": "node scripts/make-icons.mjs",
     "memories": "node scripts/memories-manifest.mjs",
+    "followers": "node scripts/fetch-followers.mjs",
     "predev": "npm run memories",
     "dev": "next dev",
     "prebuild": "npm run memories",
@@ -23,6 +25,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.11",
+    "sharp": "^0.34.5",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

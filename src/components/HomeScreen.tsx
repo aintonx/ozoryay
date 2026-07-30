@@ -3,6 +3,8 @@
 import { useCallback, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import TimerWidget from "./widgets/TimerWidget";
 import DistanceWidget from "./widgets/DistanceWidget";
+import FollowersWidget from "./widgets/FollowersWidget";
+import { useFollowers } from "@/lib/useFollowers";
 import { WidgetButton } from "./ui/Widget";
 import { IconChevronUp, IconKiss, IconStars } from "./ui/Icons";
 import type { Settings } from "@/lib/defaults";
@@ -43,6 +45,9 @@ export default function HomeScreen({
   // Секунды тикают, а страница собирается заранее: числа в готовом HTML
   // и в браузере разойдутся. Виджеты рождаются уже на клиенте.
   const mounted = useSyncExternalStore(subscribeNever, () => true, () => false);
+  // Появляется, когда появляется файл с числом. Пока токена нет — виджета
+  // нет, и разметка от этого не страдает: она пересчитается сама.
+  const followers = useFollowers();
 
   const box = useRef<HTMLDivElement>(null);
   const content = useRef<HTMLDivElement>(null);
@@ -127,6 +132,8 @@ export default function HomeScreen({
             hint="оно прячет свои секреты"
             onClick={onOpenSky}
           />
+
+          {followers && <FollowersWidget data={followers} className="col-span-2" />}
         </div>
 
         {/* Слово под виджетами. */}
