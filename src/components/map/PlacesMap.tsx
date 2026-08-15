@@ -6,14 +6,17 @@ import L from "leaflet";
 import type { Place } from "@/lib/places";
 
 /**
- * Ключ MapTiler — берётся из окружения сборки, поэтому должен начинаться
- * с NEXT_PUBLIC_, иначе Next не положит его в клиентский бандл (см. README
- * репозитория / инструкцию рядом с этим файлом).
+ * Ключ MapTiler. Лежит здесь же в коде, чтобы ничего не настраивать
+ * отдельно — переменной окружения NEXT_PUBLIC_MAPTILER_KEY достаточно,
+ * чтобы подменить его без правки кода (например, если ключ придётся
+ * сменить), но по умолчанию используется этот.
  *
- * Без ключа откатываемся на обычные тайлы OpenStreetMap: карта работает
- * сразу, просто не в тёмном фирменном стиле — пока ключ не появится.
+ * Ключ клиентский по своей природе — он в любом случае виден в браузере
+ * у любого сайта с картой, это нормально. Для защиты от чужого использования
+ * ограничь его доменом ozoryay.space в настройках на cloud.maptiler.com
+ * (Account → Keys → Allowed URLs), а не секретностью в коде.
  */
-const MAPTILER_KEY = process.env.NEXT_PUBLIC_MAPTILER_KEY;
+const MAPTILER_KEY = process.env.NEXT_PUBLIC_MAPTILER_KEY || "nmSECoFgo7hxbZSHEetF";
 
 const TILE_URL = MAPTILER_KEY
   ? `https://api.maptiler.com/maps/dataviz-dark/256/{z}/{x}/{y}.png?key=${MAPTILER_KEY}`
