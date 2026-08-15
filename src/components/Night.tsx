@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ContentOverlay from "./ContentOverlay";
 import HomeScreen from "./HomeScreen";
-import MapScreen from "./map/MapScreen";
 import Screens, { type ScreenIndex } from "./Screens";
 import SkyScreen, { type SparkKind } from "./SkyScreen";
 import Sky from "./Sky";
@@ -12,7 +11,6 @@ import TitleDawn from "./TitleDawn";
 import type { Settings } from "@/lib/defaults";
 import { speakingLetters, type Letter } from "@/lib/letters";
 import { AUTHOR, MEMORIES } from "@/lib/memories";
-import { PLACES } from "@/lib/places";
 import type { ProjectorImage } from "@/lib/sky/projector";
 import { useDeck } from "@/lib/useDeck";
 import { useMemories } from "@/lib/useMemories";
@@ -106,7 +104,6 @@ export default function Night({ settings, letters }: NightProps) {
   const [projectorPlaying, setProjectorPlaying] = useState(false);
   const [kissToken, setKissToken] = useState(0);
   const [kissInFlight, setKissInFlight] = useState(false);
-  const [mapOpen, setMapOpen] = useState(false);
 
   const timers = useRef<number[]>([]);
   const sparkTimer = useRef<number | undefined>(undefined);
@@ -322,7 +319,6 @@ export default function Night({ settings, letters }: NightProps) {
             settings={settings}
             onKiss={onKiss}
             onOpenSky={() => setScreen(1)}
-            onOpenMap={() => setMapOpen(true)}
             kissInFlight={kissInFlight}
           />
         }
@@ -358,8 +354,6 @@ export default function Night({ settings, letters }: NightProps) {
         onLeave={onIntroLeave}
         onDone={onIntroDone}
       />
-
-      <MapScreen open={mapOpen} onClose={() => setMapOpen(false)} places={PLACES} />
     </>
   );
 }

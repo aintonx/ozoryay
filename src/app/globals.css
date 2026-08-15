@@ -213,29 +213,6 @@ body {
   border-radius: 4px;
 }
 
-/*
- * Leaflet: подгонка под тему сайта.
- *
- * По умолчанию его служебные элементы — из чужого, светлого языка (белый
- * фон подсказки авторства, системный шрифт браузера). Здесь всё должно
- * остаться частью той же ночи, что и весь остальной интерфейс.
- */
-.leaflet-container {
-  background: var(--color-night-deep);
-  font-family: var(--font-system);
-}
-
-.leaflet-control-attribution {
-  background: rgba(5, 7, 15, 0.55) !important;
-  color: var(--color-star) !important;
-  font-size: 10px !important;
-  backdrop-filter: blur(6px);
-}
-
-.leaflet-control-attribution a {
-  color: var(--color-star) !important;
-}
-
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

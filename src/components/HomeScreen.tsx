@@ -6,7 +6,7 @@ import DistanceWidget from "./widgets/DistanceWidget";
 import FollowersWidget from "./widgets/FollowersWidget";
 import { useFollowers } from "@/lib/useFollowers";
 import { WidgetButton } from "./ui/Widget";
-import { IconChevronUp, IconKiss, IconMarker, IconStars } from "./ui/Icons";
+import { IconChevronUp, IconKiss, IconStars } from "./ui/Icons";
 import type { Settings } from "@/lib/defaults";
 import type { SeparationCounter } from "@/lib/time/useSeparationDays";
 
@@ -21,7 +21,6 @@ interface HomeScreenProps {
   settings: Settings;
   onKiss: () => void;
   onOpenSky: () => void;
-  onOpenMap: () => void;
   /** Поцелуй уже в пути — кнопка ждёт. */
   kissInFlight: boolean;
 }
@@ -41,7 +40,6 @@ export default function HomeScreen({
   settings,
   onKiss,
   onOpenSky,
-  onOpenMap,
   kissInFlight,
 }: HomeScreenProps) {
   // Секунды тикают, а страница собирается заранее: числа в готовом HTML
@@ -133,14 +131,6 @@ export default function HomeScreen({
             label="Взгляни на небо"
             hint="оно прячет свои секреты"
             onClick={onOpenSky}
-          />
-          <WidgetButton
-            layout="row"
-            icon={<IconMarker />}
-            label="Наша карта"
-            hint="места, которые нам дороги"
-            onClick={onOpenMap}
-            className="col-span-2"
           />
 
           {followers && <FollowersWidget data={followers} className="col-span-2" />}
