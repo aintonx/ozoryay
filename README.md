@@ -1,34 +1,91 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Карта — как вставить в репозиторий
 
-## Getting Started
+Собрано и проверено (`tsc --noEmit`, `eslint`, полный `next build --output export`)
+на копии твоего репозитория `aintonx/ozoryay`. Пути внутри `src/` совпадают
+один в один — можно просто скопировать поверх.
 
-First, run the development server:
+## 1. Файлы
+
+**Новые** (просто добавить):
+- `src/lib/places.ts` — данные о точках (3 примера внутри)
+- `src/components/map/MapScreen.tsx` — окно карты
+- `src/components/map/PlacesMap.tsx` — сама карта (react-leaflet)
+- `src/components/map/PlaceCard.tsx` — карточка точки
+
+**Изменённые** (заменить целиком):
+- `src/components/HomeScreen.tsx` — добавлена плитка «Наша карта»
+- `src/components/Night.tsx` — подключено состояние карты
+- `src/app/layout.tsx` — добавлена строка `import "leaflet/dist/leaflet.css";`
+- `src/app/globals.css` — добавлен блок стилей под Leaflet в конце файла
+- `package.json`, `package-lock.json` — добавлены `leaflet`, `react-leaflet`, `@types/leaflet`
+
+Если у тебя эти файлы успели измениться с момента, что я их читал —
+`layout.tsx` и `globals.css` безопаснее не перезаписывать целиком, а внести
+те же две вставки руками (они короткие, см. ниже).
+
+## 2. Установка
+
+```bash
+npm install
+```
+
+(package-lock.json уже содержит нужные версии, `npm ci` тоже сработает)
+
+## 3. Ключ MapTiler
+
+Сейчас без ключа карта работает на обычных тайлах OpenStreetMap (светлые,
+без подгонки под тему). Чтобы включить тёмный стиль:
+
+1. Зарегистрируйся на https://cloud.maptiler.com (бесплатно) и возьми ключ
+   в разделе **Account → Keys**.
+2. **Для локальной разработки** — создай в корне репозитория файл
+   `.env.local` (он уже в `.gitignore`, в git не попадёт):
+   ```
+   NEXT_PUBLIC_MAPTILER_KEY=твой_ключ
+   ```
+3. **Для деплоя на GitHub Pages** — ключ нужно передать в сборку через
+   GitHub Actions:
+   - Repo → Settings → Secrets and variables → Actions → New repository secret
+     → имя `MAPTILER_KEY`, значение — твой ключ.
+   - В `.github/workflows/deploy.yml` в шаге сборки добавь переменную:
+     ```yaml
+     - run: npm run build
+       env:
+         BASE_PATH: ""
+         NEXT_PUBLIC_MAPTILER_KEY: ${{ secrets.MAPTILER_KEY }}
+     ```
+     (там уже есть `BASE_PATH: ""` — просто добавь вторую строку рядом)
+
+Ключ всё равно окажется виден в браузере (это нормально для клиентских
+карт) — просто в MapTiler можно ограничить его конкретным доменом
+(ozoryay.space) в настройках ключа, чтобы им нельзя было пользоваться
+с других сайтов.
+
+## 4. Проверка локально
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Открой сайт → на домашнем экране под кнопками «поцелуй»/«небо» появится
+широкая плитка «Наша карта» → откроется карта с тремя тестовыми точками.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 5. Добавление настоящих мест
 
-## Learn More
+Открой `src/lib/places.ts` и замени три примера на настоящие точки: место,
+координаты (широту/долготу можно взять из Google Maps — клик правой
+кнопкой по точке → координаты сверху), дату, текст, и, если есть фото
+из `public/memories/`, путь к нему в поле `photo` (например,
+`"/memories/memory-04.jpg"`).
 
-To learn more about Next.js, take a look at the following resources:
+## 6. Что сознательно не сделано в этой версии
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Все метки на карте — одной формы и цвета (amber, как у остальных иконок
+  сайта): различие по типу события — только текстом на карточке. Палитра
+  сайта — шесть цветов и без исключений, так что разноцветные значки под
+  разные типы событий выбиваются из неё; если хочется различать типы и
+  визуально — это отдельная, аккуратная задача (например, свой мини-значок
+  внутри той же капли под каждый `kind`), можно сделать следующим шагом.
+- Карта не помнит масштаб/положение между открытиями — каждый раз строит
+  вид заново по всем точкам (`fitBounds`). Для количества мест, которое
+  тут реально будет, это не должно мешать.

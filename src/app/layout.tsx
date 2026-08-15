@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Prata, Spectral, Golos_Text, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import "leaflet/dist/leaflet.css";
 
 // Заголовок: Prata — контрастная антиква с характером, «дорогая». Появляется
 // редко (рассвет-заголовок и строка настоящего рассвета), поэтому может себе
