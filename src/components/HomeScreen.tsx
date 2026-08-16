@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
+import {
+  type CSSProperties,
+  useCallback,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import TimerWidget from "./widgets/TimerWidget";
 import DistanceWidget from "./widgets/DistanceWidget";
 import FollowersWidget from "./widgets/FollowersWidget";
@@ -15,6 +22,7 @@ const subscribeNever = () => () => {};
 
 /** Ниже этого не ужимаем: лучше подрезать поля, чем сделать текст нечитаемым. */
 const MIN_SCALE = 0.76;
+const WIDE_QUERY = "(min-width: 640px)";
 
 interface HomeScreenProps {
   counter: SeparationCounter;
@@ -52,6 +60,8 @@ export default function HomeScreen({
   const box = useRef<HTMLDivElement>(null);
   const content = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
+  const [wide, setWide] = useState(false);
+  const [visualWidth, setVisualWidth] = useState<number | null>(null);
 
   const fit = useCallback(() => {
     const outer = box.current;
@@ -65,12 +75,23 @@ export default function HomeScreen({
     const pad = getComputedStyle(outer);
     const available =
       outer.clientHeight - parseFloat(pad.paddingTop) - parseFloat(pad.paddingBottom);
+    const availableWidth =
+      outer.clientWidth - parseFloat(pad.paddingLeft) - parseFloat(pad.paddingRight);
+    const rootFontSize = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+    const maxWidth = (window.matchMedia(WIDE_QUERY).matches ? 44 : 26) * rootFontSize;
+    const nextWidth = Math.min(availableWidth, maxWidth);
     const next = natural > available ? Math.max(MIN_SCALE, available / natural) : 1;
+    setVisualWidth((prev) =>
+      prev === null || Math.abs(prev - nextWidth) > 0.5 ? nextWidth : prev,
+    );
     setScale((prev) => (Math.abs(prev - next) > 0.004 ? next : prev));
   }, []);
 
   useLayoutEffect(() => {
     if (!mounted) return;
+    const media = window.matchMedia(WIDE_QUERY);
+    const syncWide = () => setWide(media.matches);
+    syncWide();
     fit();
     const ro = new ResizeObserver(fit);
     if (box.current) ro.observe(box.current);
@@ -81,12 +102,22 @@ export default function HomeScreen({
     window.addEventListener("orientationchange", fit);
     return () => {
       ro.disconnect();
+      media.removeEventListener("change", syncWide);
       window.removeEventListener("resize", fit);
       window.removeEventListener("orientationchange", fit);
     };
   }, [mounted, fit]);
 
   if (!mounted) return null;
+
+  const visualMaxRem = wide ? 44 : 26;
+  const layoutWidth = visualWidth === null ? undefined : visualWidth / scale;
+  const contentStyle = {
+    width: layoutWidth === undefined ? "100%" : `${layoutWidth}px`,
+    maxWidth: layoutWidth === undefined ? `${visualMaxRem}rem` : `${layoutWidth}px`,
+    transform: `scale(${scale})`,
+    transformOrigin: "center center",
+  } satisfies CSSProperties;
 
   return (
     <div
@@ -100,8 +131,8 @@ export default function HomeScreen({
       */}
       <div
         ref={content}
-        className="w-full max-w-[26rem] sm:max-w-[44rem]"
-        style={{ transform: `scale(${scale})`, transformOrigin: "center center" }}
+        className="mx-auto shrink-0"
+        style={contentStyle}
       >
         {/*
           Сетка домашнего экрана телефона: каждый виджет занимает всю ширину.
