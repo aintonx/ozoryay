@@ -12,8 +12,8 @@ import TimerWidget from "./widgets/TimerWidget";
 import DistanceWidget from "./widgets/DistanceWidget";
 import FollowersWidget from "./widgets/FollowersWidget";
 import { useFollowers } from "@/lib/useFollowers";
-import { WidgetButton } from "./ui/Widget";
-import { IconChevronUp, IconKiss, IconStars } from "./ui/Icons";
+import { Widget, WidgetButton } from "./ui/Widget";
+import { IconChevronUp, IconKiss, IconLock, IconStars } from "./ui/Icons";
 import type { Settings } from "@/lib/defaults";
 import type { SeparationCounter } from "@/lib/time/useSeparationDays";
 
@@ -135,51 +135,47 @@ export default function HomeScreen({
         style={contentStyle}
       >
         {/*
-          Сетка домашнего экрана телефона: каждый виджет занимает всю ширину.
-          На широком экране время, расстояние и кнопки снова собираются в две
-          колонки, но на мобиле карточки не прыгают между полной и половинной
-          шириной.
+          Сетка домашнего экрана телефона: две равные колонки для основных
+          действий, затем две полноширинные строки — закрытое продолжение и
+          текст-послесловие. Весь блок масштабируется по высоте, но визуальная
+          ширина остаётся той же, что у кнопок на экране неба.
         */}
         <div className="grid grid-cols-2 gap-[0.7rem]">
-          <TimerWidget counter={counter} className="col-span-2 sm:col-span-1" />
+          <TimerWidget counter={counter} />
           <DistanceWidget
             distanceKm={settings.distanceKm}
             myCity={settings.myCity}
             herCity={settings.herCity}
-            className="col-span-2 sm:col-span-1"
           />
           <WidgetButton
+            layout="tile"
             icon={<IconKiss />}
             label="Отправить поцелуй"
             hint={kissInFlight ? "летит ко мне…" : "он улетит за горизонт ко мне"}
             onClick={onKiss}
             disabled={kissInFlight}
-            className="col-span-2 sm:col-span-1"
           />
           <WidgetButton
+            layout="tile"
             icon={<IconStars />}
             label="Взгляни на небо"
             hint="оно прячет свои секреты"
             onClick={onOpenSky}
-            className="col-span-2 sm:col-span-1"
           />
 
           {followers && <FollowersWidget data={followers} className="col-span-2" />}
-        </div>
-
-        {/*
-          Слово под виджетами — в стекле, чтобы не терялось на фоне неба.
-          Отступы здесь чуть плотнее, чем у обычных карточек: это добавка
-          к уже плотному экрану, и лишняя высота включает автосжатие всего
-          блока целиком (см. fit() выше) — тогда узкими кажутся все виджеты
-          сразу, а не только этот текст.
-        */}
-        <div className="glass mx-auto mt-[1.1rem] max-w-[24rem] rounded-[1.55rem] px-[1.05rem] py-[0.8rem]">
-          <p className="font-system caption text-center text-[13px] leading-[1.5] text-star/72">
-            Рассвет случится с твоим приездом, а пока здесь тьма и пустота — как
-            интерпретация моей души без тебя, как сердце, запертое в темнице.
-            «Озоряй» — это про тебя: про свет и про любовь.
-          </p>
+          <Widget className="col-span-2 items-center justify-center py-[1.1rem]">
+            <span className="flex h-[2.65rem] w-[2.65rem] items-center justify-center rounded-full bg-amber/12 text-[1.25rem] text-amber/85">
+              <IconLock />
+            </span>
+          </Widget>
+          <div className="glass col-span-2 rounded-[1.55rem] px-[1.05rem] py-[0.8rem]">
+            <p className="font-system caption text-center text-[13px] leading-[1.5] text-star/72">
+              Рассвет случится с твоим приездом, а пока здесь тьма и пустота — как
+              интерпретация моей души без тебя, как сердце, запертое в темнице.
+              «Озоряй» — это про тебя: про свет и про любовь.
+            </p>
+          </div>
         </div>
 
         {/* Подсказка про свайп. */}

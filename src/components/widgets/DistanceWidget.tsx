@@ -43,48 +43,50 @@ export default function DistanceWidget({
 }: DistanceWidgetProps) {
   return (
     <Widget icon={<IconPin />} title="МЕЖДУ НАМИ" className={className}>
-      <div className="flex items-baseline gap-[0.35em]">
-        <span className="font-system text-[2.35rem] leading-none font-semibold tabular-nums tracking-[-0.03em] text-star">
-          {spaceThousands(distanceKm)}
-        </span>
-        <span className="font-system text-[13px] text-star/50">км</span>
-      </div>
+      <div className="flex min-h-[8.9rem] flex-col justify-center">
+        <div className="flex items-baseline justify-center gap-[0.35em] sm:justify-start">
+          <span className="font-system text-[2rem] leading-none font-semibold tabular-nums tracking-[-0.03em] text-star sm:text-[2.35rem]">
+            {spaceThousands(distanceKm)}
+          </span>
+          <span className="font-system text-[13px] text-star/50">км</span>
+        </div>
 
       {/* Маршрут: дуга от моего города к твоему. Ширина растягивается,
           высота задана жёстко — иначе на широком виджете диаграмма растёт
           вслед за шириной и занимает пол-карточки. Дуга поэтому в своём
           слое с preserveAspectRatio="none", а метки — в своём, иначе их
           бы расплющило вместе с ней. */}
-      <div className="relative mt-[0.8rem] h-[2.9rem] w-full">
-        <svg
-          viewBox="0 0 200 46"
-          className="absolute inset-0 h-full w-full"
-          preserveAspectRatio="none"
-          aria-hidden="true"
-        >
-          <path
-            d="M14 36 Q100 6 186 36"
-            fill="none"
-            stroke="var(--color-amber)"
-            strokeOpacity={0.42}
-            strokeWidth={1.4}
-            strokeDasharray="3 4"
-            strokeLinecap="round"
+        <div className="relative mt-[0.75rem] h-[2.55rem] w-full sm:h-[2.9rem]">
+          <svg
+            viewBox="0 0 200 46"
+            className="absolute inset-0 h-full w-full"
+            preserveAspectRatio="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M14 36 Q100 6 186 36"
+              fill="none"
+              stroke="var(--color-amber)"
+              strokeOpacity={0.42}
+              strokeWidth={1.4}
+              strokeDasharray="3 4"
+              strokeLinecap="round"
+            />
+          </svg>
+
+          {/* Я — метка неяркая. Ты — метка горящая, с ореолом вокруг. */}
+          <Marker at={7} className="text-star/55" />
+          <span
+            className="absolute bottom-0 h-[1.6rem] w-[1.6rem] -translate-x-1/2 translate-y-[0.42rem] rounded-full bg-amber/16"
+            style={{ left: "93%" }}
           />
-        </svg>
+          <Marker at={93} className="text-amber-hot" />
+        </div>
 
-        {/* Я — метка неяркая. Ты — метка горящая, с ореолом вокруг. */}
-        <Marker at={7} className="text-star/55" />
-        <span
-          className="absolute bottom-0 h-[1.6rem] w-[1.6rem] -translate-x-1/2 translate-y-[0.42rem] rounded-full bg-amber/16"
-          style={{ left: "93%" }}
-        />
-        <Marker at={93} className="text-amber-hot" />
-      </div>
-
-      <div className="font-system mt-[0.5rem] flex justify-between text-[10.5px] text-star/40">
-        <span>{myCity}</span>
-        <span className="text-amber/70">{herCity}</span>
+        <div className="font-system mt-[0.45rem] flex justify-between text-[10px] text-star/40 sm:text-[10.5px]">
+          <span>{myCity}</span>
+          <span className="text-amber/70">{herCity}</span>
+        </div>
       </div>
     </Widget>
   );

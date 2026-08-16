@@ -92,6 +92,17 @@ export function IconStars({ className, size }: IconProps) {
   );
 }
 
+/** Замок: закрытое продолжение истории. */
+export function IconLock({ className, size }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <rect x="5.2" y="10.2" width="13.6" height="9.2" rx="2.4" />
+      <path d="M8.2 10.2V8a3.8 3.8 0 0 1 7.6 0v2.2" />
+      <path d="M12 14v2" />
+    </svg>
+  );
+}
+
 /** Луч света: «зажги воспоминание» — проектор светит в небо. */
 export function IconBeam({ className, size }: IconProps) {
   return (
