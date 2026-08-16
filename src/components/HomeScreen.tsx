@@ -118,19 +118,19 @@ export default function HomeScreen({
             className="col-span-2 sm:col-span-1"
           />
           <WidgetButton
-            layout="tile"
             icon={<IconKiss />}
             label="Отправить поцелуй"
             hint={kissInFlight ? "летит ко мне…" : "он улетит за горизонт ко мне"}
             onClick={onKiss}
             disabled={kissInFlight}
+            className="col-span-2"
           />
           <WidgetButton
-            layout="tile"
             icon={<IconStars />}
             label="Взгляни на небо"
             hint="оно прячет свои секреты"
             onClick={onOpenSky}
+            className="col-span-2"
           />
 
           {followers && <FollowersWidget data={followers} className="col-span-2" />}
