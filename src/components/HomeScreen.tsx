@@ -136,12 +136,14 @@ export default function HomeScreen({
           {followers && <FollowersWidget data={followers} className="col-span-2" />}
         </div>
 
-        {/* Слово под виджетами. */}
-        <p className="font-system caption mx-auto mt-[1.3rem] max-w-[24rem] text-center text-[13px] leading-[1.6] text-star/72">
-          Рассвет случится с твоим приездом, а пока здесь тьма и пустота — как
-          интерпретация моей души без тебя, как сердце, запертое в темнице.
-          «Озоряй» — это про тебя: про свет и про любовь.
-        </p>
+        {/* Слово под виджетами — в стекле, чтобы не терялось на фоне неба. */}
+        <div className="glass mx-auto mt-[1.3rem] max-w-[24rem] rounded-[1.55rem] p-[1.05rem]">
+          <p className="font-system caption text-center text-[13px] leading-[1.6] text-star/72">
+            Рассвет случится с твоим приездом, а пока здесь тьма и пустота — как
+            интерпретация моей души без тебя, как сердце, запертое в темнице.
+            «Озоряй» — это про тебя: про свет и про любовь.
+          </p>
+        </div>
 
         {/* Подсказка про свайп. */}
         <button
