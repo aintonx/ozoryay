@@ -45,7 +45,7 @@ export default function SkyScreen({ onSpark, hint, onBack }: SkyScreenProps) {
         {hint}
       </div>
 
-      <div className="pointer-events-auto mx-auto grid w-full max-w-[26rem] gap-[0.7rem] sm:max-w-[49rem] sm:grid-cols-3">
+      <div className="pointer-events-auto mx-auto grid w-full max-w-[26rem] grid-cols-1 gap-[0.7rem] sm:max-w-[49rem] sm:grid-cols-3">
         <WidgetButton
           icon={<IconBeam />}
           label="Зажги воспоминание"

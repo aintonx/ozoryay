@@ -104,10 +104,10 @@ export default function HomeScreen({
         style={{ transform: `scale(${scale})`, transformOrigin: "center center" }}
       >
         {/*
-          Сетка домашнего экрана телефона: широкий виджет занимает обе колонки,
-          маленький — одну. На телефоне время и расстояние идут во всю ширину,
-          а две кнопки встают плиткой рядом — их общая граница по бокам та же,
-          что у контейнера кнопок на экране неба (тот же px и тот же max-w).
+          Сетка домашнего экрана телефона: каждый виджет занимает всю ширину.
+          На широком экране время, расстояние и кнопки снова собираются в две
+          колонки, но на мобиле карточки не прыгают между полной и половинной
+          шириной.
         */}
         <div className="grid grid-cols-2 gap-[0.7rem]">
           <TimerWidget counter={counter} className="col-span-2 sm:col-span-1" />
@@ -118,19 +118,19 @@ export default function HomeScreen({
             className="col-span-2 sm:col-span-1"
           />
           <WidgetButton
-            layout="tile"
             icon={<IconKiss />}
             label="Отправить поцелуй"
             hint={kissInFlight ? "летит ко мне…" : "он улетит за горизонт ко мне"}
             onClick={onKiss}
             disabled={kissInFlight}
+            className="col-span-2 sm:col-span-1"
           />
           <WidgetButton
-            layout="tile"
             icon={<IconStars />}
             label="Взгляни на небо"
             hint="оно прячет свои секреты"
             onClick={onOpenSky}
+            className="col-span-2 sm:col-span-1"
           />
 
           {followers && <FollowersWidget data={followers} className="col-span-2" />}
