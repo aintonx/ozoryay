@@ -109,7 +109,7 @@ export default function HomeScreen({
           а две кнопки встают плиткой рядом — их общая граница по бокам та же,
           что у контейнера кнопок на экране неба (тот же px и тот же max-w).
         */}
-        <div className="grid grid-cols-2 gap-[0.85rem]">
+        <div className="grid grid-cols-2 gap-[0.7rem]">
           <TimerWidget counter={counter} className="col-span-2 sm:col-span-1" />
           <DistanceWidget
             distanceKm={settings.distanceKm}
@@ -136,9 +136,15 @@ export default function HomeScreen({
           {followers && <FollowersWidget data={followers} className="col-span-2" />}
         </div>
 
-        {/* Слово под виджетами — в стекле, чтобы не терялось на фоне неба. */}
-        <div className="glass mx-auto mt-[1.3rem] max-w-[24rem] rounded-[1.55rem] p-[1.05rem]">
-          <p className="font-system caption text-center text-[13px] leading-[1.6] text-star/72">
+        {/*
+          Слово под виджетами — в стекле, чтобы не терялось на фоне неба.
+          Отступы здесь чуть плотнее, чем у обычных карточек: это добавка
+          к уже плотному экрану, и лишняя высота включает автосжатие всего
+          блока целиком (см. fit() выше) — тогда узкими кажутся все виджеты
+          сразу, а не только этот текст.
+        */}
+        <div className="glass mx-auto mt-[1.1rem] max-w-[24rem] rounded-[1.55rem] px-[1.05rem] py-[0.8rem]">
+          <p className="font-system caption text-center text-[13px] leading-[1.5] text-star/72">
             Рассвет случится с твоим приездом, а пока здесь тьма и пустота — как
             интерпретация моей души без тебя, как сердце, запертое в темнице.
             «Озоряй» — это про тебя: про свет и про любовь.
@@ -152,7 +158,7 @@ export default function HomeScreen({
             if (e.detail > 0) e.currentTarget.blur();
             onOpenSky();
           }}
-          className="font-system caption mx-auto mt-[1.1rem] flex items-center gap-[0.4em] text-[12px] font-medium tracking-[0.05em] text-star transition-opacity duration-300 hover:opacity-80"
+          className="font-system caption mx-auto mt-[0.9rem] flex items-center gap-[0.4em] text-[12px] font-medium tracking-[0.05em] text-star transition-opacity duration-300 hover:opacity-80"
         >
           <IconChevronUp size={13} />
           смахни вверх
