@@ -9,11 +9,6 @@ interface WidgetProps {
   title?: string;
   children: ReactNode;
   className?: string;
-  /**
-   * Если задан — вся карточка становится ссылкой (новая вкладка).
-   * Нужен, когда виджет ведёт куда-то за пределы сайта, например в профиль.
-   */
-  href?: string;
 }
 
 /**
@@ -22,44 +17,16 @@ interface WidgetProps {
  *
  * Стекло берётся из общего класса `.glass`, поэтому все карточки на сайте
  * выглядят одним набором, а не собранием разных панелей.
- *
- * Иконка в шапке стоит в собственном кружке-бейдже, а не просто рядом
- * с текстом: так у всех карточек один и тот же якорь — верхний левый угол
- * бейджа, — и заголовки выравниваются между собой сами, каким бы ни было
- * содержимое ниже.
  */
-export function Widget({ icon, title, children, className = "", href }: WidgetProps) {
-  const header = (icon || title) && (
-    <div className="mb-[0.75rem] flex items-center gap-[0.45rem]">
-      {icon && (
-        <span className="flex h-[1.35rem] w-[1.35rem] shrink-0 items-center justify-center rounded-full bg-amber/14 text-[0.72rem] text-amber">
-          {icon}
-        </span>
-      )}
-      {title && (
-        <span className="font-system text-[10.5px] font-semibold tracking-[0.05em] text-star/48">
-          {title}
-        </span>
-      )}
-    </div>
-  );
-
-  const classes = `glass flex flex-col rounded-[1.55rem] p-[1.05rem] ${
-    href ? "transition-transform duration-300 active:scale-[0.985]" : ""
-  } ${className}`;
-
-  if (href) {
-    return (
-      <a href={href} target="_blank" rel="noopener noreferrer" className={classes}>
-        {header}
-        {children}
-      </a>
-    );
-  }
-
+export function Widget({ icon, title, children, className = "" }: WidgetProps) {
   return (
-    <div className={classes}>
-      {header}
+    <div className={`glass flex flex-col rounded-[1.55rem] p-[1.05rem] ${className}`}>
+      {(icon || title) && (
+        <div className="font-system mb-[0.7rem] flex items-center gap-[0.4em] text-[11px] font-medium tracking-[0.02em] text-star/45">
+          {icon}
+          {title}
+        </div>
+      )}
       {children}
     </div>
   );
@@ -109,29 +76,41 @@ export function WidgetButton({
       // Прозрачность самой карточки не трогаем ни при каком состоянии:
       // у стекла от неё пропадает размытие и оно возвращается рывком.
       // Гаснет только содержимое.
-      //
-      // У плитки один и тот же порядок в потоке при любой ширине экрана:
-      // бейдж, затем подпись, затем пояснение — сверху вниз, без переключения
-      // на строку по брейкпоинту. Раньше на широком экране плитка становилась
-      // строкой, а на телефоне — с текстом, прижатым к низу карточки через
-      // `justify-between`; из-за этого у двух соседних плиток с текстом разной
-      // длины бейджи и подписи оказывались на разной высоте. Теперь якорь
-      // один — верхний край, — и все плитки растут вниз одинаково.
       className={`glass group flex w-full rounded-[1.55rem] p-[1.05rem] text-left transition-transform duration-300 active:scale-[0.985] disabled:pointer-events-none ${
-        tile ? "flex-col items-start gap-[0.7rem]" : "items-center gap-[0.85rem]"
+        tile
+          ? // Плитка — формат телефона. На широком экране места хватает, и она
+            // разворачивается в ту же строку, что и все остальные карточки.
+            "min-h-[6.6rem] flex-col justify-between gap-[0.8rem] sm:min-h-0 sm:flex-row sm:items-center sm:gap-[0.85rem]"
+          : "items-center gap-[0.85rem]"
       } ${className}`}
     >
       <span className="flex h-[2.1rem] w-[2.1rem] shrink-0 items-center justify-center rounded-full bg-amber/12 text-[1.05rem] text-amber/90 transition-opacity duration-300 group-hover:bg-amber/18 group-disabled:opacity-40">
         {icon}
       </span>
+      {/*
+        В плитке у подписи и у пояснения своя минимальная высота — по две
+        строки. Иначе соседние плитки с разной длиной текста расходятся:
+        у одной подпись в одну строку, у другой в две, и при выравнивании
+        по низу карточки строки встают на разных уровнях.
+      */}
       <span
-        className={`min-w-0 transition-opacity duration-300 group-disabled:opacity-45 ${tile ? "" : "flex-1"}`}
+        className={`transition-opacity duration-300 group-disabled:opacity-45 ${
+          tile ? "block sm:min-w-0 sm:flex-1" : "min-w-0 flex-1"
+        }`}
       >
-        <span className="font-system block text-[13.5px] leading-tight font-medium text-star/92">
+        <span
+          className={`font-system block text-[13.5px] leading-tight font-medium text-star/92 ${
+            tile ? "min-h-[2.5em] sm:min-h-0" : ""
+          }`}
+        >
           {label}
         </span>
         {hint && (
-          <span className="font-system mt-[0.2em] block text-[11px] leading-snug text-star/42">
+          <span
+            className={`font-system mt-[0.15em] block text-[11px] leading-snug text-star/42 ${
+              tile ? "min-h-[2.75em] sm:min-h-0" : ""
+            }`}
+          >
             {hint}
           </span>
         )}

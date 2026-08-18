@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ContentOverlay from "./ContentOverlay";
 import HomeScreen from "./HomeScreen";
-import HomeNote from "./HomeNote";
 import Screens, { type ScreenIndex } from "./Screens";
 import SkyScreen, { type SparkKind } from "./SkyScreen";
 import Sky from "./Sky";
@@ -37,10 +36,6 @@ const KISS_MS = 3000;
 const DIALOG_ID_BASE = 1000;
 /** Сколько отговоривших звёзд остаётся гореть, прежде чем самые старые гаснут. */
 const LIT_LIMIT = 30;
-/** Пауза после появления домашнего экрана перед тем, как придёт записка. */
-const NOTE_DELAY_MS = 1400;
-/** Сколько держится записка, если её не закрыли раньше. */
-const NOTE_MS = 9000;
 
 const HINT_TEXT = "нажми ещё раз — загорится новая звезда";
 
@@ -109,17 +104,12 @@ export default function Night({ settings, letters }: NightProps) {
   const [projectorPlaying, setProjectorPlaying] = useState(false);
   const [kissToken, setKissToken] = useState(0);
   const [kissInFlight, setKissInFlight] = useState(false);
-  /** Записка-послесловие сверху экрана: показана ли она сейчас. */
-  const [note, setNote] = useState(false);
 
   const timers = useRef<number[]>([]);
   const sparkTimer = useRef<number | undefined>(undefined);
   const dialogCount = useRef(0);
   const hintSeen = useRef(false);
   const projectorRun = useRef(0);
-  /** Записка приходит один раз за визит — повторный вход или обновление
-   *  страницы создают новый визит и новый повод её показать. */
-  const noteShown = useRef(false);
 
   useEffect(() => {
     const pending = timers.current;
@@ -132,17 +122,6 @@ export default function Night({ settings, letters }: NightProps) {
   const later = useCallback((fn: () => void, ms: number) => {
     timers.current.push(window.setTimeout(fn, ms));
   }, []);
-
-  // Записка приходит один раз: когда вступление кончилось (intro === 2),
-  // домашний экран впервые становится виден. К этому моменту `screen`
-  // ещё гарантированно на 0 — свайп невозможен, пока весь интерфейс скрыт
-  // из-за вступления, — так что переживать про экран неба не нужно.
-  useEffect(() => {
-    if (intro !== 2 || noteShown.current) return;
-    noteShown.current = true;
-    later(() => setNote(true), NOTE_DELAY_MS);
-    later(() => setNote(false), NOTE_DELAY_MS + NOTE_MS);
-  }, [intro, later]);
 
   // Письма, которым есть что сказать: без пустых слотов и без вечной звезды.
   const speaking = useMemo(() => speakingLetters(letters), [letters]);
@@ -308,10 +287,6 @@ export default function Night({ settings, letters }: NightProps) {
   const showing = spark !== null || projectorPlaying;
   // Интерфейс уходит с глаз на всё, ради чего стоит смотреть на небо.
   const veiled = intro !== 2 || showing || kissInFlight;
-  // Записка видна только поверх самого домашнего экрана: если человек
-  // смахнул на небо или что-то зажглось, она просто ждёт своего часа —
-  // не гаснет насовсем, а вернётся, если время ещё не вышло.
-  const noteVisible = note && screen === 0 && !veiled;
 
   return (
     <>
@@ -372,8 +347,6 @@ export default function Night({ settings, letters }: NightProps) {
         onNext={next}
         nextLabel="дальше"
       />
-
-      <HomeNote show={noteVisible} onDismiss={() => setNote(false)} />
 
       {/* Снимает себя сам: свет уже пошёл на убыль, а строка ещё уезжает. */}
       <TitleDawn

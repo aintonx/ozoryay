@@ -15,12 +15,6 @@ interface TimerWidgetProps {
  * Кольца — как кольца активности на часах: три толстые дуги с закруглёнными
  * концами, каждая в своём ритме. Часы обходят круг за сутки, минуты за час,
  * секунды за минуту. Рядом — число дней, оно и есть главная величина.
- *
- * Раскладка одна и та же на любой ширине экрана: кольца сверху, цифры
- * снизу, всё по центру. Виджет всегда живёт в узкой колонке сетки — даже
- * на широком окне ему не достаётся сплошной строки, — поэтому решение
- * «шире экран — переставим кольца в строку» только рассинхронивало его
- * с соседом по сетке, у которого такого переключения не было.
  */
 export default function TimerWidget({ counter, className }: TimerWidgetProps) {
   const { days, hours, minutes, seconds } = counter;
@@ -36,9 +30,13 @@ export default function TimerWidget({ counter, className }: TimerWidgetProps) {
 
   return (
     <Widget icon={<IconClock />} title="БЕЗ ТЕБЯ" className={className}>
-      <div className="flex min-h-[8.4rem] flex-1 flex-col items-center justify-center gap-[0.6rem]">
+      <div className="flex min-h-[8.9rem] flex-col items-center justify-center gap-[0.65rem] sm:min-h-0 sm:flex-row sm:gap-[1.1rem]">
         {/* Кольца */}
-        <svg viewBox="-52 -52 104 104" className="h-[4.6rem] w-[4.6rem] shrink-0" aria-hidden="true">
+        <svg
+          viewBox="-52 -52 104 104"
+          className="h-[4.8rem] w-[4.8rem] shrink-0 sm:h-[6.2rem] sm:w-[6.2rem]"
+          aria-hidden="true"
+        >
           <g transform="rotate(-90)" fill="none" strokeLinecap="round" strokeWidth={8}>
             {rings.map((ring) => {
               const c = 2 * Math.PI * ring.r;
@@ -61,15 +59,20 @@ export default function TimerWidget({ counter, className }: TimerWidgetProps) {
         </svg>
 
         {/* Цифры */}
-        <div className="min-w-0 text-center">
-          <div className="flex items-baseline justify-center gap-[0.32em]">
-            <span className="font-system text-[2rem] leading-none font-semibold tabular-nums tracking-[-0.03em] text-star">
+        <div className="min-w-0 text-center sm:flex-1 sm:text-left">
+          <div className="flex items-baseline justify-center gap-[0.32em] sm:justify-start">
+            <span className="font-system text-[2rem] leading-none font-semibold tabular-nums tracking-[-0.03em] text-star sm:text-[2.35rem]">
               {days}
             </span>
             <span className="font-system text-[13px] text-star/50">{dayWord}</span>
           </div>
-          <div className="font-mono mt-[0.5em] text-[13px] leading-none font-light tabular-nums text-star/70">
+          <div className="font-mono mt-[0.5em] text-[13px] leading-none font-light tabular-nums text-star/70 sm:text-[15px]">
             {pad(hours)}:{pad(minutes)}:{pad(seconds)}
+          </div>
+          <div className="font-system mt-[0.5em] hidden gap-[0.75em] text-[10px] text-star/35 sm:flex">
+            <span>часы</span>
+            <span>минуты</span>
+            <span>секунды</span>
           </div>
         </div>
       </div>
