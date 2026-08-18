@@ -13,6 +13,16 @@ export interface Followers {
   username: string | null;
   followers: number | null;
   history: FollowersPoint[];
+  /**
+   * Прирост, который стоит внизу виджета, — «+153 за 3 недели».
+   *
+   * Не считается из истории: она ведётся вручную и незачем требовать
+   * от человека, который правит файл руками, ещё и накопление точных
+   * дневных отметок. Оба поля — просто число и просто подпись к нему.
+   * Нет значения — строка с приростом просто не появится.
+   */
+  growthAmount: number | null;
+  growthPeriod: string | null;
 }
 
 /**
@@ -36,7 +46,12 @@ export function useFollowers(): Followers | null {
       .then((r) => (r.ok ? r.json() : null))
       .then((json: Followers | null) => {
         if (!alive || !json || typeof json.followers !== "number") return;
-        setData({ ...json, history: Array.isArray(json.history) ? json.history : [] });
+        setData({
+          ...json,
+          history: Array.isArray(json.history) ? json.history : [],
+          growthAmount: typeof json.growthAmount === "number" ? json.growthAmount : null,
+          growthPeriod: typeof json.growthPeriod === "string" ? json.growthPeriod : null,
+        });
       })
       .catch(() => {
         // Нет файла или нет сети — виджета просто не будет.
