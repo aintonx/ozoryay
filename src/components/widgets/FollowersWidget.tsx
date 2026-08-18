@@ -47,7 +47,10 @@ export default function FollowersWidget({ data, className }: FollowersWidgetProp
       <Comet points={points.map((p) => p.n)} />
 
       {data.growthAmount != null && data.growthPeriod && (
-        <div className="font-system mt-[0.65rem] text-center text-[10.5px] text-amber/85">
+        // truncate — по той же причине, что и у городов в DistanceWidget:
+        // growthPeriod правится руками в JSON и не должен уметь перенести
+        // строку, каким бы длинным его однажды ни вписали.
+        <div className="font-system mt-[0.65rem] truncate text-center text-[10.5px] text-amber/85">
           {data.growthAmount > 0 ? "+" : data.growthAmount < 0 ? "−" : ""}
           {spaceThousands(Math.abs(data.growthAmount))} за {data.growthPeriod}
         </div>

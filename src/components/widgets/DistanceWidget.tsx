@@ -112,9 +112,13 @@ export default function DistanceWidget({
           <HerMarker at={93} />
         </div>
 
-        <div className="font-system mt-[0.45rem] flex justify-between text-[10px] text-star/40">
-          <span>{myCity}</span>
-          <span className="text-amber/70">{herCity}</span>
+        {/* Названия городов — данные, которые правишь в defaults.ts сам:
+            если однажды впишешь город длиннее «Краснодара», строка не должна
+            перенестись и потянуть за собой высоту — тот же механизм,
+            что и в плитках выше, только источник риска другой. */}
+        <div className="font-system mt-[0.45rem] flex justify-between gap-[0.5rem] text-[10px] text-star/40">
+          <span className="min-w-0 truncate">{myCity}</span>
+          <span className="min-w-0 truncate text-amber/70">{herCity}</span>
         </div>
       </div>
     </Widget>

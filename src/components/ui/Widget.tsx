@@ -117,8 +117,18 @@ export function WidgetButton({
       // `justify-between`; из-за этого у двух соседних плиток с текстом разной
       // длины бейджи и подписи оказывались на разной высоте. Теперь якорь
       // один — верхний край, — и все плитки растут вниз одинаково.
+      //
+      // Высота плитки — ЗАФИКСИРОВАНА (`h-`, не `min-h-`), и это не косметика:
+      // `HomeScreen` меряет естественную высоту всей сетки через ResizeObserver
+      // и подгоняет под неё масштаб. Если бы высота плитки зависела от того,
+      // как перенеслась строка пояснения, — пересчитанная ширина могла бы
+      // сама менять перенос строк, что меняет высоту, что снова меняет
+      // ширину — и это заворачивается в бесконечный дребезг. `overflow-hidden`
+      // на случай, если однажды подпись всё же станет длиннее отведённого.
       className={`glass group flex w-full rounded-[1.55rem] p-[1.05rem] text-left transition-transform duration-300 active:scale-[0.985] disabled:pointer-events-none ${
-        tile ? "flex-col items-start gap-[0.7rem]" : "items-center gap-[0.85rem]"
+        tile
+          ? "h-[6.6rem] flex-col items-start gap-[0.7rem] overflow-hidden"
+          : "items-center gap-[0.85rem]"
       } ${className}`}
     >
       <span className="flex h-[2.1rem] w-[2.1rem] shrink-0 items-center justify-center rounded-full bg-amber/12 text-[1.05rem] text-amber/90 transition-opacity duration-300 group-hover:bg-amber/18 group-disabled:opacity-40">
