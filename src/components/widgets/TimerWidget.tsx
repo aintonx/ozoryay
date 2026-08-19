@@ -21,6 +21,13 @@ interface TimerWidgetProps {
  * на широком окне ему не достаётся сплошной строки, — поэтому решение
  * «шире экран — переставим кольца в строку» только рассинхронивало его
  * с соседом по сетке, у которого такого переключения не было.
+ *
+ * Строка часов:минут:секунд прижата к самому низу общей высоты
+ * `min-h-[8.4rem]` — не по центру вместе со всем остальным. У соседнего
+ * `DistanceWidget` строка городов устроена ровно так же и прижата к той
+ * же самой высоте: раз оба виджета делят одну высоту и один и тот же
+ * способ прижимать нижнюю строку к низу, их детали сами оказываются
+ * на одной линии, без подгонки отступов на глаз.
  */
 export default function TimerWidget({ counter, className }: TimerWidgetProps) {
   const { days, hours, minutes, seconds } = counter;
@@ -36,41 +43,43 @@ export default function TimerWidget({ counter, className }: TimerWidgetProps) {
 
   return (
     <Widget icon={<IconClock />} title="БЕЗ ТЕБЯ" className={className}>
-      <div className="flex min-h-[8.4rem] flex-1 flex-col items-center justify-center gap-[0.6rem]">
-        {/* Кольца */}
-        <svg viewBox="-52 -52 104 104" className="h-[4.6rem] w-[4.6rem] shrink-0" aria-hidden="true">
-          <g transform="rotate(-90)" fill="none" strokeLinecap="round" strokeWidth={8}>
-            {rings.map((ring) => {
-              const c = 2 * Math.PI * ring.r;
-              // Полный круг чуть не замыкаем: закруглённый конец наехал бы
-              // на начало и дал заметный шов.
-              const filled = Math.min(ring.value, 0.9995);
-              return (
-                <g key={ring.r}>
-                  <circle r={ring.r} stroke="var(--color-star)" strokeOpacity={0.09} />
-                  <circle
-                    r={ring.r}
-                    stroke={ring.color}
-                    strokeOpacity={ring.alpha}
-                    strokeDasharray={`${c * filled} ${c}`}
-                  />
-                </g>
-              );
-            })}
-          </g>
-        </svg>
+      <div className="flex min-h-[8.4rem] flex-1 flex-col gap-[0.6rem]">
+        <div className="flex flex-1 flex-col items-center justify-center gap-[0.6rem]">
+          {/* Кольца */}
+          <svg viewBox="-52 -52 104 104" className="h-[4.6rem] w-[4.6rem] shrink-0" aria-hidden="true">
+            <g transform="rotate(-90)" fill="none" strokeLinecap="round" strokeWidth={8}>
+              {rings.map((ring) => {
+                const c = 2 * Math.PI * ring.r;
+                // Полный круг чуть не замыкаем: закруглённый конец наехал бы
+                // на начало и дал заметный шов.
+                const filled = Math.min(ring.value, 0.9995);
+                return (
+                  <g key={ring.r}>
+                    <circle r={ring.r} stroke="var(--color-star)" strokeOpacity={0.09} />
+                    <circle
+                      r={ring.r}
+                      stroke={ring.color}
+                      strokeOpacity={ring.alpha}
+                      strokeDasharray={`${c * filled} ${c}`}
+                    />
+                  </g>
+                );
+              })}
+            </g>
+          </svg>
 
-        {/* Цифры */}
-        <div className="min-w-0 text-center">
+          {/* Дни */}
           <div className="flex items-baseline justify-center gap-[0.32em]">
             <span className="font-system text-[2rem] leading-none font-semibold tabular-nums tracking-[-0.03em] text-star">
               {days}
             </span>
             <span className="font-system text-[13px] text-star/50">{dayWord}</span>
           </div>
-          <div className="font-mono mt-[0.5em] text-[13px] leading-none font-light tabular-nums text-star/70">
-            {pad(hours)}:{pad(minutes)}:{pad(seconds)}
-          </div>
+        </div>
+
+        {/* Часы:минуты:секунды — на одной линии со строкой городов у соседа. */}
+        <div className="font-mono text-center text-[13px] leading-none font-light tabular-nums text-star/70">
+          {pad(hours)}:{pad(minutes)}:{pad(seconds)}
         </div>
       </div>
     </Widget>

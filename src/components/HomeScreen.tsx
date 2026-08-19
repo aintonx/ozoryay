@@ -11,9 +11,10 @@ import {
 import TimerWidget from "./widgets/TimerWidget";
 import DistanceWidget from "./widgets/DistanceWidget";
 import FollowersWidget from "./widgets/FollowersWidget";
+import LockWidget from "./widgets/LockWidget";
 import { useFollowers } from "@/lib/useFollowers";
-import { Widget, WidgetButton } from "./ui/Widget";
-import { IconChevronUp, IconKiss, IconLock, IconStars } from "./ui/Icons";
+import { WidgetButton } from "./ui/Widget";
+import { IconChevronUp, IconKiss, IconStars } from "./ui/Icons";
 import type { Settings } from "@/lib/defaults";
 import type { SeparationCounter } from "@/lib/time/useSeparationDays";
 
@@ -31,6 +32,8 @@ interface HomeScreenProps {
   onOpenSky: () => void;
   /** Поцелуй уже в пути — кнопка ждёт. */
   kissInFlight: boolean;
+  /** Спустя нужное время после появления экрана — правда открывается. */
+  lockRevealed: boolean;
 }
 
 /**
@@ -52,6 +55,7 @@ export default function HomeScreen({
   onKiss,
   onOpenSky,
   kissInFlight,
+  lockRevealed,
 }: HomeScreenProps) {
   // Секунды тикают, а страница собирается заранее: числа в готовом HTML
   // и в браузере разойдутся. Виджеты рождаются уже на клиенте.
@@ -140,8 +144,9 @@ export default function HomeScreen({
         {/*
           Сетка домашнего экрана телефона: две равные колонки для основных
           действий, затем полноширинная строка — закрытое продолжение.
-          Текст-послесловие, который раньше стоял здесь же плиткой, теперь
-          отдельное уведомление поверх экрана — см. `HomeNote` в `Night`.
+          Текст-послесловие, который раньше стоял здесь же отдельной плиткой,
+          теперь показывается прямо внутри `LockWidget` и барабаном сменяется
+          на подпись замка — смотри `revealed` и таймер в `Night`.
           Весь блок масштабируется по высоте, но визуальная ширина остаётся
           той же, что у кнопок на экране неба.
         */}
@@ -156,7 +161,7 @@ export default function HomeScreen({
             layout="tile"
             icon={<IconKiss />}
             label="Отправить поцелуй"
-            hint={kissInFlight ? "летит ко мне…" : "он улетит за горизонт ко мне"}
+            hint={kissInFlight ? "летит ко мне…" : "он улетит ко мне"}
             onClick={onKiss}
             disabled={kissInFlight}
           />
@@ -164,27 +169,16 @@ export default function HomeScreen({
             layout="tile"
             icon={<IconStars />}
             label="Взгляни на небо"
-            // Неразрывный пробел держит «свои секреты» одним куском: на узкой
-            // колонке подсказка соседней плитки — «он улетит за горизонт ко
-            // мне» — переносится на вторую строку сама, просто по длине.
-            // Без этой связки «свои секреты» на пару символов короче и на
-            // той же ширине могла бы поместиться в одну строку — и тогда
-            // у двух соседних плиток подписи оказались бы разной высоты.
-            // Пробел ничего не меняет там, где переноса и не требуется:
-            // на широком экране обе строки просто идут в одну строку.
+            // Неразрывный пробел держит «свои секреты» одним куском, чтобы
+            // перенос (если он вообще случится на узкой колонке) прошёл
+            // после «прячет», а не разбил фразу на «свои» отдельно от
+            // «секреты» — так подпись остаётся читаемой при любой ширине.
             hint={"оно прячет свои\u00A0секреты"}
             onClick={onOpenSky}
           />
 
           {followers && <FollowersWidget data={followers} className="col-span-2" />}
-          <Widget className="col-span-2 flex-col items-center justify-center gap-[0.5rem] py-[1.2rem]">
-            <span className="flex h-[2.75rem] w-[2.75rem] items-center justify-center rounded-full bg-amber/12 text-[1.25rem] text-amber/85">
-              <IconLock />
-            </span>
-            <span className="font-system text-[10.5px] text-star/38">
-              продолжение откроется позже
-            </span>
-          </Widget>
+          <LockWidget revealed={lockRevealed} className="col-span-2" />
         </div>
 
         {/* Подсказка про свайп. */}
