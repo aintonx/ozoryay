@@ -1,9 +1,15 @@
 "use client";
 
 import { WidgetButton } from "./ui/Widget";
-import { IconBeam, IconChevronUp, IconDialog, IconLetter } from "./ui/Icons";
+import {
+  IconBeam,
+  IconChevronUp,
+  IconConstellation,
+  IconDialog,
+  IconLetter,
+} from "./ui/Icons";
 
-export type SparkKind = "memory" | "dialog" | "letter";
+export type SparkKind = "memory" | "dialog" | "letter" | "laugh";
 
 interface SkyScreenProps {
   onSpark: (kind: SparkKind) => void;
@@ -14,7 +20,7 @@ interface SkyScreenProps {
 }
 
 /**
- * Экран неба: три кнопки внизу и всё остальное — небу.
+ * Экран неба: кнопки внизу и всё остальное — небу.
  *
  * Пока что-то горит, весь этот экран уезжает вниз целиком (см. `Screens`) —
  * кнопки не должны спорить со светом. Здесь об этом заботиться не нужно.
@@ -45,6 +51,11 @@ export default function SkyScreen({ onSpark, hint, onBack }: SkyScreenProps) {
         {hint}
       </div>
 
+      {/*
+        Те же кнопки того же размера, что и раньше.
+        На телефоне — одна колонка, на широком — три в ряд
+        (четвёртая переносится на следующую строку).
+      */}
       <div className="pointer-events-auto mx-auto grid w-full max-w-[26rem] grid-cols-1 gap-[0.7rem] sm:max-w-[49rem] sm:grid-cols-3">
         <WidgetButton
           icon={<IconBeam />}
@@ -63,6 +74,12 @@ export default function SkyScreen({ onSpark, hint, onBack }: SkyScreenProps) {
           label="Зажги послание"
           hint="моё письмо тебе"
           onClick={() => onSpark("letter")}
+        />
+        <WidgetButton
+          icon={<IconConstellation />}
+          label="Созвездие вечного смеха"
+          hint="Отправиться в путешествие"
+          onClick={() => onSpark("laugh")}
         />
       </div>
     </div>

@@ -8,6 +8,7 @@ import SkyScreen, { type SparkKind } from "./SkyScreen";
 import Sky from "./Sky";
 import SparkText from "./SparkText";
 import TitleDawn from "./TitleDawn";
+import ConstellationJourney from "./ConstellationJourney";
 import type { Settings } from "@/lib/defaults";
 import { speakingLetters, type Letter } from "@/lib/letters";
 import { AUTHOR, MEMORIES } from "@/lib/memories";
@@ -105,6 +106,8 @@ export default function Night({ settings, letters }: NightProps) {
     cancel: number;
   }>({ image: null, token: 0, cancel: 0 });
   const [projectorPlaying, setProjectorPlaying] = useState(false);
+  /** Путешествие к созвездию вечного смеха. */
+  const [journey, setJourney] = useState(false);
   const [kissToken, setKissToken] = useState(0);
   const [kissInFlight, setKissInFlight] = useState(false);
   /** Послание в виджете замка один раз сменяется подписью — и остаётся так. */
@@ -202,6 +205,11 @@ export default function Night({ settings, letters }: NightProps) {
     (kind: SparkKind) => {
       if (kind === "memory") {
         runProjector();
+        return;
+      }
+
+      if (kind === "laugh") {
+        setJourney(true);
         return;
       }
 
@@ -304,7 +312,7 @@ export default function Night({ settings, letters }: NightProps) {
 
   const showing = spark !== null || projectorPlaying;
   // Интерфейс уходит с глаз на всё, ради чего стоит смотреть на небо.
-  const veiled = intro !== 2 || showing || kissInFlight;
+  const veiled = intro !== 2 || showing || kissInFlight || journey;
 
   return (
     <>
@@ -372,6 +380,11 @@ export default function Night({ settings, letters }: NightProps) {
         bearingDeg={settings.bearingDeg}
         onLeave={onIntroLeave}
         onDone={onIntroDone}
+      />
+
+      <ConstellationJourney
+        active={journey}
+        onDone={() => setJourney(false)}
       />
     </>
   );
