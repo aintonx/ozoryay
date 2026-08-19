@@ -3,7 +3,7 @@
 import { Widget } from "../ui/Widget";
 import { IconPeople } from "../ui/Icons";
 import type { Followers } from "@/lib/useFollowers";
-import { spaceThousands } from "@/lib/text/plural";
+import { plural, spaceThousands } from "@/lib/text/plural";
 
 interface FollowersWidgetProps {
   data: Followers;
@@ -41,7 +41,9 @@ export default function FollowersWidget({ data, className }: FollowersWidgetProp
         <span className="font-system text-[2.2rem] leading-none font-semibold tabular-nums tracking-[-0.03em] text-star">
           {spaceThousands(count)}
         </span>
-        <span className="font-system text-[13px] text-star/50">людей</span>
+        <span className="font-system text-[13px] text-star/50">
+          {plural(count, "человек", "человека", "человек")}
+        </span>
       </div>
 
       <Comet points={points.map((p) => p.n)} />
