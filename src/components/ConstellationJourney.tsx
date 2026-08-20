@@ -1,132 +1,159 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
-
-/**
- * Кинематографическое путешествие к «Созвездию вечного смеха».
- *
- * Фазы:
- * 1. warp      — ускорение вглубь космоса (звёздный туннель)
- * 2. approach  — пролёт мимо реальных галактик
- * 3. portal    — появление мягкого светящегося портала/созвездия
- * 4. playing   — видео-мем зациклено внутри портала
- * 5. exit      — обратный прыжок к обычному небу
- *
- * Свайп в любую сторону в фазах portal/playing запускает выход.
- */
-
-type Phase = "warp" | "approach" | "portal" | "playing" | "exit";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { IconSpeaker, IconSpeakerOff } from "./ui/Icons";
 
 interface ConstellationJourneyProps {
   /** Запустить (true) / остановить и убрать. */
   active: boolean;
-  /** Когда анимация выхода закончилась — вернуть управление. */
+  /** Когда обратный полёт закончился — вернуть управление вызывающему. */
   onDone: () => void;
-  /** Путь к видео (относительно public/). */
-  videoSrc?: string;
 }
 
-const VIDEO_SRC = "/memes/meme-esc.mov";
-const GALAXIES = [
-  "/galaxies/andromeda.jpg",
-  "/galaxies/ngc4414.jpg",
-  "/galaxies/sombrero.jpg",
-];
+/**
+ * Формат — обязательно .mp4, не .mov. Это не прихоть: у .mov MIME-тип
+ * video/quicktime, и Chrome (в отличие от Safari) вообще отказывается
+ * играть его через тег <video>, каким бы кодеком видео ни было снято
+ * внутри. Экспорт/переименование в .mp4 решает это полностью — подробности
+ * в public/memes/README.md.
+ */
+const VIDEO_SRC = "/memes/meme-esc.mp4";
+const GALAXY_A = "/galaxies/andromeda.jpg";
+const GALAXY_B = "/galaxies/ngc4414.jpg";
 
-const WARP_MS = 2800;
-const APPROACH_MS = 2200;
-const PORTAL_MS = 1800;
-const EXIT_MS = 1600;
+/** Долгий разгон и подлёт — не суетимся, космос никуда не спешит. */
+const FORWARD_MS = 7600;
+/** Обратный прыжок короче и резче — как рывок назад, а не второе путешествие. */
+const REVERSE_MS = 1500;
+/** Ровно тот же порог, что в `ContentOverlay` — один и тот же жест на сайте. */
+const SWIPE = 44;
 
-const SWIPE_THRESHOLD = 48;
+type Mode = "forward" | "arrived" | "reverse" | "done";
 
-export default function ConstellationJourney({
-  active,
-  onDone,
-  videoSrc = VIDEO_SRC,
-}: ConstellationJourneyProps) {
-  const [phase, setPhase] = useState<Phase>("warp");
-  const [muted, setMuted] = useState(true);
+function clamp01(t: number) {
+  return t < 0 ? 0 : t > 1 ? 1 : t;
+}
+function lerp(a: number, b: number, t: number) {
+  return a + (b - a) * clamp01(t);
+}
+function mapRange(t: number, a: number, b: number) {
+  return clamp01((t - a) / (b - a));
+}
+function easeOutCubic(t: number) {
+  const c = clamp01(t);
+  return 1 - Math.pow(1 - c, 3);
+}
+function easeInCubic(t: number) {
+  const c = clamp01(t);
+  return c * c * c;
+}
+function easeInOutCubic(t: number) {
+  const c = clamp01(t);
+  return c < 0.5 ? 4 * c * c * c : 1 - Math.pow(-2 * c + 2, 3) / 2;
+}
+/** Плавная трапеция: нарастает, держится на пике, гаснет — без швов на стыках. */
+function trapezoid(t: number, riseEnd: number, fallStart: number) {
+  const c = clamp01(t);
+  if (c <= 0 || c >= 1) return 0;
+  if (c < riseEnd) return easeOutCubic(c / riseEnd);
+  if (c > fallStart) return 1 - easeInOutCubic((c - fallStart) / (1 - fallStart));
+  return 1;
+}
+
+interface Star {
+  x: number;
+  y: number;
+  z: number;
+  speed: number;
+  size: number;
+  /** Небольшая доля звёзд горит тёплым — тем же приёмом, что и в остальном небе:
+   *  холодный свет — фон, тёплый — то немногое, что особенное. */
+  warm: boolean;
+}
+
+function makeStars(count: number): Star[] {
+  const list: Star[] = [];
+  for (let i = 0; i < count; i++) {
+    list.push({
+      x: (Math.random() - 0.5) * 2,
+      y: (Math.random() - 0.5) * 2,
+      z: Math.random() * 1.2 + 0.05,
+      speed: 0.004 + Math.random() * 0.013,
+      size: 0.6 + Math.random() * 1.8,
+      warm: Math.random() < 0.16,
+    });
+  }
+  return list;
+}
+
+/**
+ * Кинематографическое путешествие к «Созвездию вечного смеха».
+ *
+ * Не серия сменяющих друг друга фаз, а один непрерывный полёт: скорость
+ * тоннеля, яркость пролетающих галактик, размер звезды-цели — всё это
+ * функция одного и того же плавно нарастающего числа. Сама звезда-цель
+ * горит тёплым (amber-hot) с первого кадра — едва заметной точкой среди
+ * обычных, холодных звёзд, — и по мере приближения именно она вырастает
+ * в видео. Мысль в том, что видео не «появляется из портала», а было
+ * этой самой звездой всё время, просто слишком далеко, чтобы разглядеть.
+ *
+ * Выход — свайп в любую сторону, ровно тот же жест, что уже закрывает
+ * вспышки на небе (`ContentOverlay`): тот же порог движения пальца, та же
+ * кривая, тот же «гаснущий» текст-подсказка при удержании.
+ */
+export default function ConstellationJourney({ active, onDone }: ConstellationJourneyProps) {
   const [visible, setVisible] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [muted, setMuted] = useState(true);
+  const [showControls, setShowControls] = useState(false);
+  const [held, setHeld] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const rafRef = useRef<number>(0);
-  const startRef = useRef<{ x: number; y: number } | null>(null);
-  const timers = useRef<number[]>([]);
-  const phaseStart = useRef(0);
-  const stars = useRef<
-    Array<{ x: number; y: number; z: number; speed: number; size: number }>
-  >([]);
 
+  const modeRef = useRef<Mode>("forward");
+  const progressRef = useRef(0);
+  const startTimeRef = useRef(0);
+  const reverseStartRef = useRef(0);
+  const reverseFromRef = useRef(0);
+  const rafRef = useRef<number>(0);
+  const stars = useRef<Star[]>([]);
+  const timers = useRef<number[]>([]);
+  const doneCalledRef = useRef(false);
+  const startPointer = useRef<{ x: number; y: number } | null>(null);
+
+  const later = useCallback((fn: () => void, ms: number) => {
+    timers.current.push(window.setTimeout(fn, ms));
+  }, []);
   const clearTimers = useCallback(() => {
     timers.current.forEach((t) => window.clearTimeout(t));
     timers.current = [];
   }, []);
 
-  const later = useCallback((fn: () => void, ms: number) => {
-    timers.current.push(window.setTimeout(fn, ms));
-  }, []);
-
-  // Инициализация и запуск при active=true
+  // Главный цикл: старт, кадр за кадром, обратный прыжок — всё здесь.
   useEffect(() => {
     if (!active) {
-      setVisible(false);
-      setPhase("warp");
-      clearTimers();
-      if (videoRef.current) {
-        videoRef.current.pause();
-        videoRef.current.currentTime = 0;
-      }
+      // Сам этот проход ничего не запускает: либо путешествие уже
+      // корректно свернулось собственным циклом (он сбрасывает video/rAF
+      // и вызывает onDone из requestAnimationFrame — не отсюда, поэтому
+      // sync setState здесь не нужен), либо это заканчивает cleanup-функция
+      // предыдущего запуска ниже.
       return;
     }
 
-    setVisible(true);
-    setPhase("warp");
-    setMuted(true);
-    phaseStart.current = performance.now();
-
-    // Генерируем звёзды для туннеля
-    const list: typeof stars.current = [];
-    for (let i = 0; i < 420; i++) {
-      list.push({
-        x: (Math.random() - 0.5) * 2,
-        y: (Math.random() - 0.5) * 2,
-        z: Math.random() * 1.2 + 0.05,
-        speed: 0.004 + Math.random() * 0.012,
-        size: 0.6 + Math.random() * 1.8,
-      });
-    }
-    stars.current = list;
-
-    later(() => setPhase("approach"), WARP_MS);
-    later(() => setPhase("portal"), WARP_MS + APPROACH_MS);
-    later(() => {
-      setPhase("playing");
-      const v = videoRef.current;
-      if (v) {
-        v.currentTime = 0;
-        v.muted = true;
-        void v.play().catch(() => {});
-      }
-    }, WARP_MS + APPROACH_MS + PORTAL_MS);
-
-    return () => clearTimers();
-  }, [active, clearTimers, later]);
-
-  // Canvas анимация звёздного туннеля
-  useEffect(() => {
-    if (!active || !visible) return;
-
     const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+    const ctx = canvas?.getContext("2d") ?? null;
+    if (!canvas || !ctx) return;
+
+    setVisible(true);
+    setShowControls(false);
+    setMuted(true);
+    doneCalledRef.current = false;
+    modeRef.current = "forward";
+    progressRef.current = 0;
+    setProgress(0);
+    stars.current = makeStars(340);
+    startTimeRef.current = performance.now();
 
     const resize = () => {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -139,120 +166,102 @@ export default function ConstellationJourney({
     resize();
     window.addEventListener("resize", resize);
 
+    // Видео заводим сразу, приглушённым: звук браузеры разрешают надёжнее
+    // включить у УЖЕ играющего элемента, чем запустить с нуля спустя долгую
+    // паузу после нажатия. Пока портал не дорос — просто не видно.
+    const videoEl = videoRef.current;
+    if (videoEl) {
+      videoEl.currentTime = 0;
+      videoEl.muted = true;
+      void videoEl.play().catch(() => {});
+    }
+
     let last = performance.now();
-    const draw = (now: number) => {
+    let lastStateUpdate = 0;
+
+    const tick = (now: number) => {
+      const mode = modeRef.current;
       const dt = Math.min(32, now - last);
       last = now;
-      const w = window.innerWidth;
-      const h = window.innerHeight;
-      const cx = w / 2;
-      const cy = h / 2;
 
-      // Фон
-      ctx.fillStyle = "#02040a";
-      ctx.fillRect(0, 0, w, h);
-
-      // В фазах approach/portal/playing слегка приглушаем туннель
-      const intensity =
-        phase === "warp"
-          ? 1
-          : phase === "approach"
-            ? 0.55
-            : phase === "portal"
-              ? 0.25
-              : phase === "exit"
-                ? 0.7
-                : 0.12;
-
-      const speedMul =
-        phase === "warp"
-          ? 1.8
-          : phase === "approach"
-            ? 0.9
-            : phase === "exit"
-              ? 2.4
-              : 0.15;
-
-      for (const s of stars.current) {
-        s.z -= s.speed * speedMul * (dt / 16);
-        if (s.z <= 0.02) {
-          s.z = 1.15;
-          s.x = (Math.random() - 0.5) * 2;
-          s.y = (Math.random() - 0.5) * 2;
+      if (mode === "forward") {
+        const p = clamp01((now - startTimeRef.current) / FORWARD_MS);
+        progressRef.current = p;
+        if (p >= 1) {
+          modeRef.current = "arrived";
+          later(() => setShowControls(true), 450);
         }
-
-        const k = 0.55 / s.z;
-        const px = cx + s.x * k * w * 0.55;
-        const py = cy + s.y * k * h * 0.55;
-        const prevK = 0.55 / (s.z + s.speed * speedMul * 3);
-        const prevX = cx + s.x * prevK * w * 0.55;
-        const prevY = cy + s.y * prevK * h * 0.55;
-
-        const alpha = Math.min(1, intensity * (1.1 - s.z) * 1.4);
-        if (alpha < 0.03) continue;
-
-        ctx.beginPath();
-        ctx.strokeStyle = `rgba(200, 220, 255, ${alpha * 0.85})`;
-        ctx.lineWidth = Math.max(0.6, s.size * (1.2 - s.z) * 1.1);
-        ctx.moveTo(prevX, prevY);
-        ctx.lineTo(px, py);
-        ctx.stroke();
-
-        // Яркая точка
-        ctx.beginPath();
-        ctx.fillStyle = `rgba(240, 248, 255, ${alpha})`;
-        ctx.arc(px, py, Math.max(0.4, s.size * (1.15 - s.z) * 0.55), 0, Math.PI * 2);
-        ctx.fill();
+      } else if (mode === "reverse") {
+        const rp = clamp01((now - reverseStartRef.current) / REVERSE_MS);
+        progressRef.current = reverseFromRef.current * (1 - easeInCubic(rp));
+        if (rp >= 1) modeRef.current = "done";
       }
 
-      rafRef.current = requestAnimationFrame(draw);
+      drawTunnel(ctx, window.innerWidth, window.innerHeight, dt, stars.current, progressRef.current, modeRef.current);
+
+      if (now - lastStateUpdate > 45) {
+        lastStateUpdate = now;
+        setProgress(progressRef.current);
+      }
+
+      if (modeRef.current === "done") {
+        if (!doneCalledRef.current) {
+          doneCalledRef.current = true;
+          setVisible(false);
+          onDone();
+        }
+        return;
+      }
+
+      rafRef.current = requestAnimationFrame(tick);
     };
 
-    rafRef.current = requestAnimationFrame(draw);
+    rafRef.current = requestAnimationFrame(tick);
 
     return () => {
-      cancelAnimationFrame(rafRef.current);
       window.removeEventListener("resize", resize);
+      cancelAnimationFrame(rafRef.current);
+      clearTimers();
+      if (videoEl) {
+        videoEl.pause();
+        videoEl.currentTime = 0;
+        videoEl.muted = true;
+      }
+      modeRef.current = "forward";
+      progressRef.current = 0;
     };
-  }, [active, visible, phase]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active]);
 
-  // Свайп для выхода
+  const beginExit = useCallback(() => {
+    if (modeRef.current === "reverse" || modeRef.current === "done") return;
+    modeRef.current = "reverse";
+    setShowControls(false);
+    reverseFromRef.current = progressRef.current;
+    reverseStartRef.current = performance.now();
+    const v = videoRef.current;
+    if (v) later(() => v.pause(), 260);
+  }, [later]);
+
   const onPointerDown = (e: React.PointerEvent) => {
-    if (phase !== "portal" && phase !== "playing") return;
+    if (modeRef.current !== "arrived") return;
     if ((e.target as HTMLElement).closest("button")) return;
-    startRef.current = { x: e.clientX, y: e.clientY };
+    startPointer.current = { x: e.clientX, y: e.clientY };
+    setHeld(true);
   };
-
   const onPointerMove = (e: React.PointerEvent) => {
-    const s = startRef.current;
+    const s = startPointer.current;
     if (!s) return;
-    if (Math.hypot(e.clientX - s.x, e.clientY - s.y) > SWIPE_THRESHOLD) {
-      startRef.current = null;
+    if (Math.hypot(e.clientX - s.x, e.clientY - s.y) > SWIPE) {
+      startPointer.current = null;
+      setHeld(false);
       beginExit();
     }
   };
-
   const endPointer = () => {
-    startRef.current = null;
+    startPointer.current = null;
+    setHeld(false);
   };
-
-  const beginExit = useCallback(() => {
-    if (phase === "exit") return;
-    setPhase("exit");
-    const v = videoRef.current;
-    if (v) {
-      // плавное затухание звука/видео
-      v.style.transition = "opacity 0.9s ease";
-      v.style.opacity = "0";
-      later(() => {
-        v.pause();
-      }, 900);
-    }
-    later(() => {
-      setVisible(false);
-      onDone();
-    }, EXIT_MS);
-  }, [phase, later, onDone]);
 
   const toggleMute = () => {
     const v = videoRef.current;
@@ -263,233 +272,232 @@ export default function ConstellationJourney({
 
   if (!active && !visible) return null;
 
-  const showPortal = phase === "portal" || phase === "playing" || phase === "exit";
-  const showVideo = phase === "playing" || phase === "exit";
-  const showGalaxies = phase === "approach" || phase === "portal";
+  // --- всё ниже — чистые функции одного и того же progress, без своего состояния ---
+  const p = progress;
+
+  const aWin = mapRange(p, 0.08, 0.46);
+  const aShape = trapezoid(aWin, 0.28, 0.72);
+  const bWin = mapRange(p, 0.4, 0.8);
+  const bShape = trapezoid(bWin, 0.28, 0.72);
+
+  const starGrowth = Math.pow(p, 2.6);
+  const portalScale = Math.max(0.018, starGrowth);
+  const haloScale = Math.max(0.05, Math.pow(p, 2));
+  const haloOpacity = mapRange(p, 0.04, 0.9) * 0.9;
+
+  const videoOpacity = mapRange(p, 0.84, 1);
+  const dotOpacity = 1 - videoOpacity;
+
+  const galaxyTransition = "opacity 200ms linear, transform 200ms linear, filter 200ms linear";
+  const portalTransition = "transform 160ms linear";
+  const fadeTransition = "opacity 180ms linear";
 
   return (
     <div
-      className="fixed inset-0 z-50"
+      className="fixed inset-0 z-50 overflow-hidden"
       style={{
         touchAction: "none",
-        opacity: visible ? 1 : 0,
-        transition: "opacity 0.5s ease",
-        background: "#02040a",
+        opacity: visible && active ? 1 : 0,
+        transition: "opacity 700ms ease",
+        background: "var(--color-night-deep)",
+        pointerEvents: visible && active ? "auto" : "none",
       }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={endPointer}
       onPointerCancel={endPointer}
     >
-      {/* Звёздный туннель */}
-      <canvas
-        ref={canvasRef}
-        className="absolute inset-0 h-full w-full"
+      <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" aria-hidden />
+
+      {/* Галактика на пролёте — большая, с мягким эллиптическим угасанием
+          к краю, а не вырезанная кругом: у настоящего снимка нет края.
+          Обычный <img>, не next/image: сайт — статический экспорт без
+          сервера для его оптимизации, а трансформ/маска/blur пересчитываются
+          на лету и меняются каждый кадр — next/image тут не даёт ничего,
+          кроме лишнего слоя между стилями и разметкой. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={GALAXY_A}
+        alt=""
         aria-hidden
+        className="pointer-events-none absolute h-[118vmin] w-[118vmin] max-w-none select-none object-cover"
+        style={{
+          left: "32%",
+          top: "38%",
+          opacity: aShape * 0.85,
+          transform: `translate(-50%, -50%) translate(${-4 + 8 * aWin}%, ${3 - 5 * aWin}%) scale(${1 + 0.16 * aWin})`,
+          filter: `brightness(0.82) contrast(1.08) saturate(1.1) blur(${(1 - aShape) * 5}px)`,
+          maskImage: "radial-gradient(ellipse 60% 56% at 50% 50%, black 28%, transparent 74%)",
+          WebkitMaskImage: "radial-gradient(ellipse 60% 56% at 50% 50%, black 28%, transparent 74%)",
+          transition: galaxyTransition,
+        }}
+      />
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={GALAXY_B}
+        alt=""
+        aria-hidden
+        className="pointer-events-none absolute h-[112vmin] w-[112vmin] max-w-none select-none object-cover"
+        style={{
+          left: "68%",
+          top: "60%",
+          opacity: bShape * 0.85,
+          transform: `translate(-50%, -50%) translate(${5 - 9 * bWin}%, ${-3 + 6 * bWin}%) scale(${1 + 0.14 * bWin})`,
+          filter: `brightness(0.82) contrast(1.08) saturate(1.1) blur(${(1 - bShape) * 5}px)`,
+          maskImage: "radial-gradient(ellipse 58% 54% at 50% 50%, black 28%, transparent 74%)",
+          WebkitMaskImage: "radial-gradient(ellipse 58% 54% at 50% 50%, black 28%, transparent 74%)",
+          transition: galaxyTransition,
+        }}
       />
 
-      {/* Реальные галактики — пролетают на фазе approach */}
-      {showGalaxies && (
-        <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          {GALAXIES.map((src, i) => (
-            <img
-              key={src}
-              src={src}
-              alt=""
-              className="absolute rounded-full object-cover opacity-0"
-              style={{
-                width: `${38 + i * 12}vmin`,
-                height: `${38 + i * 12}vmin`,
-                left: `${18 + i * 28}%`,
-                top: `${12 + (i % 2) * 40}%`,
-                filter: "brightness(0.75) contrast(1.1) saturate(1.15)",
-                animation: `galaxy-drift ${4.5 + i * 0.8}s ease-in-out ${i * 0.35}s both`,
-                boxShadow: "0 0 60px 20px rgba(80,120,200,0.15)",
-              }}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* Портал + видео */}
-      <div
-        className="pointer-events-none absolute inset-0 flex items-center justify-center"
-        style={{
-          opacity: showPortal ? 1 : 0,
-          transition: "opacity 1.1s ease",
-        }}
-      >
-        {/* Внешнее свечение портала */}
+      {/* Звезда-цель: горела тёплой точкой с первого кадра, теперь выросла
+          и стала видео. Внешнее гало и сама точка — разные слои: гало шире
+          и мягче, растёт чуть иначе, чем то, что внутри него светится. */}
+      <div className="pointer-events-none absolute" style={{ left: "50%", top: "46%" }}>
         <div
-          className="absolute"
+          className="absolute rounded-full"
           style={{
-            width: "min(86vw, 520px)",
-            height: "min(86vw, 520px)",
-            borderRadius: "50%",
+            width: "min(70vw, 480px)",
+            height: "min(70vw, 480px)",
+            left: 0,
+            top: 0,
+            transform: `translate(-50%, -50%) scale(${haloScale})`,
+            opacity: haloOpacity,
             background:
-              "radial-gradient(circle, rgba(242,197,124,0.18) 0%, rgba(100,140,220,0.08) 45%, transparent 70%)",
-            filter: "blur(8px)",
-            transform: showVideo ? "scale(1.05)" : "scale(0.55)",
-            transition: "transform 1.6s cubic-bezier(0.16, 1, 0.3, 1)",
-            animation: phase === "portal" ? "portal-pulse 2.4s ease-in-out infinite" : undefined,
+              "radial-gradient(circle, rgba(255,227,176,0.22) 0%, rgba(201,214,240,0.08) 45%, transparent 72%)",
+            filter: "blur(14px)",
+            transition: portalTransition + ", opacity 200ms linear",
           }}
         />
-
-        {/* Само «созвездие-портал» */}
         <div
-          className="relative overflow-hidden"
+          className="absolute overflow-hidden rounded-full"
           style={{
-            width: "min(78vw, 440px)",
-            aspectRatio: "1",
-            borderRadius: "50%",
-            boxShadow:
-              "0 0 40px 8px rgba(242,197,124,0.25), 0 0 80px 20px rgba(120,160,255,0.12), inset 0 0 60px rgba(20,30,60,0.6)",
-            transform: showVideo ? "scale(1)" : "scale(0.4)",
-            opacity: showPortal ? 1 : 0,
-            transition:
-              "transform 1.7s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.9s ease",
-            background: "radial-gradient(circle at 40% 35%, #0a1228 0%, #03060f 100%)",
+            width: "min(70vw, 420px)",
+            height: "min(70vw, 420px)",
+            left: 0,
+            top: 0,
+            transform: `translate(-50%, -50%) scale(${portalScale})`,
+            transition: portalTransition,
           }}
         >
-          {/* Точки-созвездие (видны пока видео не полностью проявилось) */}
           <div
             className="absolute inset-0"
             style={{
-              opacity: showVideo ? 0 : 1,
-              transition: "opacity 1.4s ease 0.3s",
+              opacity: dotOpacity,
+              transition: fadeTransition,
+              background:
+                "radial-gradient(circle at 50% 50%, #fff6e4 0%, rgba(255,227,176,0.92) 22%, rgba(242,197,124,0.55) 45%, rgba(242,197,124,0.12) 68%, transparent 85%)",
             }}
-          >
-            {[
-              [50, 28],
-              [38, 42],
-              [62, 42],
-              [32, 58],
-              [68, 58],
-              [44, 70],
-              [56, 70],
-              [50, 48],
-            ].map(([x, y], i) => (
-              <span
-                key={i}
-                className="absolute rounded-full bg-amber"
-                style={{
-                  left: `${x}%`,
-                  top: `${y}%`,
-                  width: i === 7 ? 5 : 3.5,
-                  height: i === 7 ? 5 : 3.5,
-                  transform: "translate(-50%, -50%)",
-                  boxShadow: "0 0 10px 2px rgba(242,197,124,0.7)",
-                  animation: `star-twinkle ${1.6 + (i % 3) * 0.4}s ease-in-out ${i * 0.12}s infinite`,
-                }}
-              />
-            ))}
-            {/* Лёгкие линии созвездия */}
-            <svg className="absolute inset-0 h-full w-full opacity-40" viewBox="0 0 100 100">
-              <path
-                d="M50 28 L38 42 L32 58 L44 70 M50 28 L62 42 L68 58 L56 70 M38 42 L50 48 L62 42"
-                fill="none"
-                stroke="rgba(242,197,124,0.55)"
-                strokeWidth="0.6"
-              />
-            </svg>
-          </div>
-
-          {/* Видео внутри портала */}
+          />
           <video
             ref={videoRef}
-            src={videoSrc}
+            src={VIDEO_SRC}
             loop
             playsInline
             muted={muted}
             preload="auto"
             className="absolute inset-0 h-full w-full object-cover"
             style={{
-              opacity: showVideo ? 1 : 0,
-              transition: "opacity 1.5s ease",
-              borderRadius: "50%",
-              // Мягкие края через маску
-              maskImage: "radial-gradient(circle, black 62%, transparent 88%)",
-              WebkitMaskImage: "radial-gradient(circle, black 62%, transparent 88%)",
+              opacity: videoOpacity,
+              transition: "opacity 220ms linear",
+              maskImage: "radial-gradient(circle, black 64%, transparent 96%)",
+              WebkitMaskImage: "radial-gradient(circle, black 64%, transparent 96%)",
             }}
           />
         </div>
       </div>
 
-      {/* Управление: mute + подсказка свайпа */}
-      {(phase === "playing" || phase === "portal") && (
-        <div
-          className="pointer-events-auto absolute inset-x-0 bottom-0 flex flex-col items-center gap-3 px-4 pb-[max(1.6rem,env(safe-area-inset-bottom))]"
-          style={{
-            opacity: phase === "playing" ? 1 : 0,
-            transition: "opacity 0.8s ease 0.6s",
+      {/* Управление: звук и подсказка выхода — тот же корпус и та же кривая,
+          что у полосы внизу `ContentOverlay`. */}
+      <div
+        className="pointer-events-auto absolute inset-x-0 bottom-0 flex flex-col items-center gap-[0.6rem] px-[1.15rem] pb-[max(1.5rem,env(safe-area-inset-bottom))]"
+        style={{
+          transform: showControls ? "translate3d(0,0,0)" : "translate3d(0, 120%, 0)",
+          transition: "transform 520ms cubic-bezier(0.32, 0.72, 0, 1)",
+        }}
+      >
+        <button
+          type="button"
+          onClick={(e) => {
+            if (e.detail > 0) e.currentTarget.blur();
+            toggleMute();
           }}
+          className="glass font-system flex items-center gap-[0.5em] rounded-full py-[0.7rem] pr-[1.25rem] pl-[1.05rem] text-[13px] font-medium text-star/90 transition-transform duration-300 active:scale-[0.97]"
         >
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              toggleMute();
-            }}
-            className="glass font-system flex items-center gap-2 rounded-full px-4 py-2.5 text-[13px] font-medium text-star/90 transition-transform active:scale-[0.97]"
-          >
-            {muted ? (
-              <>
-                <span aria-hidden>🔇</span>
-                включить звук
-              </>
-            ) : (
-              <>
-                <span aria-hidden>🔊</span>
-                выключить звук
-              </>
-            )}
-          </button>
-          <span className="font-system caption text-[12px] font-medium tracking-[0.05em] text-star/70">
-            смахни, чтобы вернуться
-          </span>
-        </div>
-      )}
-
-      <style>{`
-        @keyframes galaxy-drift {
-          0% {
-            opacity: 0;
-            transform: scale(0.35) translateY(40px);
-          }
-          25% {
-            opacity: 0.85;
-          }
-          70% {
-            opacity: 0.7;
-          }
-          100% {
-            opacity: 0;
-            transform: scale(1.35) translateY(-30px) translateX(20px);
-          }
-        }
-        @keyframes portal-pulse {
-          0%,
-          100% {
-            opacity: 0.85;
-            transform: scale(1);
-          }
-          50% {
-            opacity: 1;
-            transform: scale(1.04);
-          }
-        }
-        @keyframes star-twinkle {
-          0%,
-          100% {
-            opacity: 0.55;
-            transform: translate(-50%, -50%) scale(1);
-          }
-          50% {
-            opacity: 1;
-            transform: translate(-50%, -50%) scale(1.35);
-          }
-        }
-      `}</style>
+          {muted ? <IconSpeakerOff size={16} className="text-amber/90" /> : <IconSpeaker size={16} className="text-amber/90" />}
+          {muted ? "включить звук" : "выключить звук"}
+        </button>
+        <span
+          className="font-system caption text-[12px] font-medium tracking-[0.05em] text-star transition-opacity duration-300"
+          style={{ opacity: held ? 0.25 : 1 }}
+        >
+          смахни, чтобы вернуться
+        </span>
+      </div>
     </div>
   );
+}
+
+/** Скорость тоннеля: быстро в начале, плавно гасится к моменту прибытия. */
+function speedFor(progress: number, mode: Mode) {
+  if (mode === "reverse") return 3.2;
+  return lerp(2.2, 0.35, easeInOutCubic(progress));
+}
+/** Яркость самого тоннеля: чуть гаснет к финалу, чтобы не спорить со светом портала. */
+function dimFor(progress: number, mode: Mode) {
+  if (mode === "reverse") return 1;
+  if (progress > 0.82) return lerp(1, 0.5, mapRange(progress, 0.82, 1));
+  return 1;
+}
+
+function drawTunnel(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  dt: number,
+  starsList: Star[],
+  progress: number,
+  mode: Mode,
+) {
+  const cx = w / 2;
+  const cy = h * 0.46;
+
+  ctx.fillStyle = "#05070f";
+  ctx.fillRect(0, 0, w, h);
+
+  const speedMul = speedFor(progress, mode);
+  const dim = dimFor(progress, mode);
+
+  for (const s of starsList) {
+    s.z -= s.speed * speedMul * (dt / 16);
+    if (s.z <= 0.02) {
+      s.z = 1.15;
+      s.x = (Math.random() - 0.5) * 2;
+      s.y = (Math.random() - 0.5) * 2;
+    }
+
+    const k = 0.55 / s.z;
+    const px = cx + s.x * k * w * 0.55;
+    const py = cy + s.y * k * h * 0.55;
+    const prevK = 0.55 / (s.z + s.speed * speedMul * 3);
+    const prevX = cx + s.x * prevK * w * 0.55;
+    const prevY = cy + s.y * prevK * h * 0.55;
+
+    const alpha = Math.min(1, dim * (1.1 - s.z) * 1.4);
+    if (alpha < 0.03) continue;
+
+    const color = s.warm ? "255, 227, 176" : "201, 214, 240";
+
+    ctx.beginPath();
+    ctx.strokeStyle = `rgba(${color}, ${alpha * 0.8})`;
+    ctx.lineWidth = Math.max(0.6, s.size * (1.2 - s.z) * 1.1);
+    ctx.moveTo(prevX, prevY);
+    ctx.lineTo(px, py);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.fillStyle = `rgba(${color}, ${alpha})`;
+    ctx.arc(px, py, Math.max(0.4, s.size * (1.15 - s.z) * 0.55), 0, Math.PI * 2);
+    ctx.fill();
+  }
 }

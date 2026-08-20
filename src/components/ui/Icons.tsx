@@ -181,9 +181,7 @@ export function IconPin({ className, size }: IconProps) {
 export function IconConstellation({ className, size }: IconProps) {
   return (
     <svg {...base(size)} className={className}>
-      {/* Связи */}
       <path d="M7.2 8.8L11.2 5.6L16.2 7.6L18.2 12.6L14.6 16.4L9.2 17.4L6.4 13.2Z" />
-      {/* Звёзды на узлах — тот же приём, что в IconStars */}
       <path d="M7.2 7.4l.45 1.05 1.05.45-1.05.45-.45 1.05-.45-1.05-1.05-.45 1.05-.45z" />
       <path d="M11.2 4.2l.45 1.05 1.05.45-1.05.45-.45 1.05-.45-1.05-1.05-.45 1.05-.45z" />
       <path d="M16.2 6.2l.45 1.05 1.05.45-1.05.45-.45 1.05-.45-1.05-1.05-.45 1.05-.45z" />
@@ -191,6 +189,32 @@ export function IconConstellation({ className, size }: IconProps) {
       <path d="M14.6 15l.45 1.05 1.05.45-1.05.45-.45 1.05-.45-1.05-1.05-.45 1.05-.45z" />
       <path d="M9.2 16l.45 1.05 1.05.45-1.05.45-.45 1.05-.45-1.05-1.05-.45 1.05-.45z" />
       <path d="M6.4 11.8l.45 1.05 1.05.45-1.05.45-.45 1.05-.45-1.05-1.05-.45 1.05-.45z" />
+    </svg>
+  );
+}
+
+/**
+ * Динамик — звук включён. Тот же язык, что и у остальных: только контур.
+ * Используется в путешествии к созвездию, а не системный эмодзи 🔊 — сайт
+ * нигде больше эмодзи не показывает, кроме поцелуя (см. `IconKiss`), и
+ * заводить второе исключение ради кнопки звука не стоило.
+ */
+export function IconSpeaker({ className, size }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <path d="M4.4 9.6h3.2l5-4v12.8l-5-4H4.4z" />
+      <path d="M15.6 9.2a3.4 3.4 0 0 1 0 5.6" />
+      <path d="M18.2 6.8a7.2 7.2 0 0 1 0 10.4" />
+    </svg>
+  );
+}
+
+/** Динамик — звук выключен: тот же корпус, зачёркнут одной линией. */
+export function IconSpeakerOff({ className, size }: IconProps) {
+  return (
+    <svg {...base(size)} className={className}>
+      <path d="M4.4 9.6h3.2l5-4v12.8l-5-4H4.4z" />
+      <path d="M15.4 9.4l4.4 5.2M19.8 9.4l-4.4 5.2" />
     </svg>
   );
 }
