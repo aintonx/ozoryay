@@ -4,9 +4,9 @@ import { WidgetButton } from "./ui/Widget";
 import {
   IconBeam,
   IconChevronUp,
-  IconConstellation,
   IconDialog,
   IconLetter,
+  IconSparkleStar,
 } from "./ui/Icons";
 
 export type SparkKind = "memory" | "dialog" | "letter" | "laugh";
@@ -58,6 +58,12 @@ export default function SkyScreen({ onSpark, hint, onBack }: SkyScreenProps) {
       */}
       <div className="pointer-events-auto mx-auto grid w-full max-w-[26rem] grid-cols-1 gap-[0.7rem] sm:max-w-[49rem] sm:grid-cols-3">
         <WidgetButton
+          icon={<IconSparkleStar />}
+          label="Созвездие Вечного Смеха"
+          hint="Отправиться в путешествие"
+          onClick={() => onSpark("laugh")}
+        />
+        <WidgetButton
           icon={<IconBeam />}
           label="Зажги воспоминание"
           hint="луч из домика на холме"
@@ -74,12 +80,6 @@ export default function SkyScreen({ onSpark, hint, onBack }: SkyScreenProps) {
           label="Зажги послание"
           hint="моё письмо тебе"
           onClick={() => onSpark("letter")}
-        />
-        <WidgetButton
-          icon={<IconConstellation />}
-          label="Созвездие вечного смеха"
-          hint="Отправиться в путешествие"
-          onClick={() => onSpark("laugh")}
         />
       </div>
     </div>

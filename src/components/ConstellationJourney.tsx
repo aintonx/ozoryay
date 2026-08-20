@@ -14,12 +14,10 @@ interface ConstellationJourneyProps {
  * Формат — обязательно .mp4, не .mov. Это не прихоть: у .mov MIME-тип
  * video/quicktime, и Chrome (в отличие от Safari) вообще отказывается
  * играть его через тег <video>, каким бы кодеком видео ни было снято
- * внутри. Экспорт/переименование в .mp4 решает это полностью — подробности
- * в public/memes/README.md.
+ * внутри. Перепаковать (не перекодировать!) можно одной командой:
+ * `ffmpeg -i исходник.mov -c copy -movflags +faststart meme-esc.mp4`.
  */
 const VIDEO_SRC = "/memes/meme-esc.mp4";
-const GALAXY_A = "/galaxies/andromeda.jpg";
-const GALAXY_B = "/galaxies/ngc4414.jpg";
 
 /** Долгий разгон и подлёт — не суетимся, космос никуда не спешит. */
 const FORWARD_MS = 7600;
@@ -39,10 +37,6 @@ function lerp(a: number, b: number, t: number) {
 function mapRange(t: number, a: number, b: number) {
   return clamp01((t - a) / (b - a));
 }
-function easeOutCubic(t: number) {
-  const c = clamp01(t);
-  return 1 - Math.pow(1 - c, 3);
-}
 function easeInCubic(t: number) {
   const c = clamp01(t);
   return c * c * c;
@@ -50,14 +44,6 @@ function easeInCubic(t: number) {
 function easeInOutCubic(t: number) {
   const c = clamp01(t);
   return c < 0.5 ? 4 * c * c * c : 1 - Math.pow(-2 * c + 2, 3) / 2;
-}
-/** Плавная трапеция: нарастает, держится на пике, гаснет — без швов на стыках. */
-function trapezoid(t: number, riseEnd: number, fallStart: number) {
-  const c = clamp01(t);
-  if (c <= 0 || c >= 1) return 0;
-  if (c < riseEnd) return easeOutCubic(c / riseEnd);
-  if (c > fallStart) return 1 - easeInOutCubic((c - fallStart) / (1 - fallStart));
-  return 1;
 }
 
 interface Star {
@@ -69,6 +55,10 @@ interface Star {
   /** Небольшая доля звёзд горит тёплым — тем же приёмом, что и в остальном небе:
    *  холодный свет — фон, тёплый — то немногое, что особенное. */
   warm: boolean;
+  /** Свой ритм и своя фаза мерцания — на случай, когда полёт кончился
+   *  и звёзды перестают лететь, но не должны застыть совсем мёртво. */
+  twinkleSpeed: number;
+  twinklePhase: number;
 }
 
 function makeStars(count: number): Star[] {
@@ -81,21 +71,29 @@ function makeStars(count: number): Star[] {
       speed: 0.004 + Math.random() * 0.013,
       size: 0.6 + Math.random() * 1.8,
       warm: Math.random() < 0.16,
+      twinkleSpeed: 0.5 + Math.random() * 1.2,
+      twinklePhase: Math.random() * Math.PI * 2,
     });
   }
   return list;
 }
 
 /**
- * Кинематографическое путешествие к «Созвездию вечного смеха».
+ * Кинематографическое путешествие к «Созвездию Вечного Смеха».
  *
  * Не серия сменяющих друг друга фаз, а один непрерывный полёт: скорость
- * тоннеля, яркость пролетающих галактик, размер звезды-цели — всё это
- * функция одного и того же плавно нарастающего числа. Сама звезда-цель
- * горит тёплым (amber-hot) с первого кадра — едва заметной точкой среди
- * обычных, холодных звёзд, — и по мере приближения именно она вырастает
- * в видео. Мысль в том, что видео не «появляется из портала», а было
- * этой самой звездой всё время, просто слишком далеко, чтобы разглядеть.
+ * тоннеля и размер звезды-цели — функция одного и того же плавно
+ * нарастающего числа. Сама звезда-цель горит тёплым (amber-hot) с первого
+ * кадра — едва заметной точкой среди обычных, холодных звёзд, — и по мере
+ * приближения именно она вырастает в видео. Мысль в том, что видео не
+ * «появляется из портала», а было этой самой звездой всё время, просто
+ * слишком далеко, чтобы разглядеть.
+ *
+ * Когда долетели — фон по-настоящему останавливается, а не просто
+ * притормаживает: звёзды замирают на месте и лишь мерцают, каждая в своём
+ * ритме, вместо того чтобы продолжать тихо течь мимо. Без этого казалось,
+ * что корабль не долетел, а просто сбросил скорость, — ощущение полёта
+ * спорило с уже играющим видео.
  *
  * Выход — свайп в любую сторону, ровно тот же жест, что уже закрывает
  * вспышки на небе (`ContentOverlay`): тот же порог движения пальца, та же
@@ -197,7 +195,7 @@ export default function ConstellationJourney({ active, onDone }: ConstellationJo
         if (rp >= 1) modeRef.current = "done";
       }
 
-      drawTunnel(ctx, window.innerWidth, window.innerHeight, dt, stars.current, progressRef.current, modeRef.current);
+      drawTunnel(ctx, window.innerWidth, window.innerHeight, dt, stars.current, progressRef.current, modeRef.current, now);
 
       if (now - lastStateUpdate > 45) {
         lastStateUpdate = now;
@@ -275,11 +273,6 @@ export default function ConstellationJourney({ active, onDone }: ConstellationJo
   // --- всё ниже — чистые функции одного и того же progress, без своего состояния ---
   const p = progress;
 
-  const aWin = mapRange(p, 0.08, 0.46);
-  const aShape = trapezoid(aWin, 0.28, 0.72);
-  const bWin = mapRange(p, 0.4, 0.8);
-  const bShape = trapezoid(bWin, 0.28, 0.72);
-
   const starGrowth = Math.pow(p, 2.6);
   const portalScale = Math.max(0.018, starGrowth);
   const haloScale = Math.max(0.05, Math.pow(p, 2));
@@ -288,7 +281,6 @@ export default function ConstellationJourney({ active, onDone }: ConstellationJo
   const videoOpacity = mapRange(p, 0.84, 1);
   const dotOpacity = 1 - videoOpacity;
 
-  const galaxyTransition = "opacity 200ms linear, transform 200ms linear, filter 200ms linear";
   const portalTransition = "transform 160ms linear";
   const fadeTransition = "opacity 180ms linear";
 
@@ -308,47 +300,6 @@ export default function ConstellationJourney({ active, onDone }: ConstellationJo
       onPointerCancel={endPointer}
     >
       <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" aria-hidden />
-
-      {/* Галактика на пролёте — большая, с мягким эллиптическим угасанием
-          к краю, а не вырезанная кругом: у настоящего снимка нет края.
-          Обычный <img>, не next/image: сайт — статический экспорт без
-          сервера для его оптимизации, а трансформ/маска/blur пересчитываются
-          на лету и меняются каждый кадр — next/image тут не даёт ничего,
-          кроме лишнего слоя между стилями и разметкой. */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={GALAXY_A}
-        alt=""
-        aria-hidden
-        className="pointer-events-none absolute h-[118vmin] w-[118vmin] max-w-none select-none object-cover"
-        style={{
-          left: "32%",
-          top: "38%",
-          opacity: aShape * 0.85,
-          transform: `translate(-50%, -50%) translate(${-4 + 8 * aWin}%, ${3 - 5 * aWin}%) scale(${1 + 0.16 * aWin})`,
-          filter: `brightness(0.82) contrast(1.08) saturate(1.1) blur(${(1 - aShape) * 5}px)`,
-          maskImage: "radial-gradient(ellipse 60% 56% at 50% 50%, black 28%, transparent 74%)",
-          WebkitMaskImage: "radial-gradient(ellipse 60% 56% at 50% 50%, black 28%, transparent 74%)",
-          transition: galaxyTransition,
-        }}
-      />
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={GALAXY_B}
-        alt=""
-        aria-hidden
-        className="pointer-events-none absolute h-[112vmin] w-[112vmin] max-w-none select-none object-cover"
-        style={{
-          left: "68%",
-          top: "60%",
-          opacity: bShape * 0.85,
-          transform: `translate(-50%, -50%) translate(${5 - 9 * bWin}%, ${-3 + 6 * bWin}%) scale(${1 + 0.14 * bWin})`,
-          filter: `brightness(0.82) contrast(1.08) saturate(1.1) blur(${(1 - bShape) * 5}px)`,
-          maskImage: "radial-gradient(ellipse 58% 54% at 50% 50%, black 28%, transparent 74%)",
-          WebkitMaskImage: "radial-gradient(ellipse 58% 54% at 50% 50%, black 28%, transparent 74%)",
-          transition: galaxyTransition,
-        }}
-      />
 
       {/* Звезда-цель: горела тёплой точкой с первого кадра, теперь выросла
           и стала видео. Внешнее гало и сама точка — разные слои: гало шире
@@ -438,10 +389,15 @@ export default function ConstellationJourney({ active, onDone }: ConstellationJo
   );
 }
 
-/** Скорость тоннеля: быстро в начале, плавно гасится к моменту прибытия. */
+/**
+ * Скорость тоннеля: быстро в начале, гасится к моменту прибытия почти
+ * до нуля — не «медленнее», а по-настоящему «встали». Прежнее значение
+ * (0.35) всё ещё было заметным движением: фон тихо тёк мимо даже когда
+ * видео уже играло, и это спорило с самим ощущением «мы долетели».
+ */
 function speedFor(progress: number, mode: Mode) {
   if (mode === "reverse") return 3.2;
-  return lerp(2.2, 0.35, easeInOutCubic(progress));
+  return lerp(2.2, 0.015, easeInOutCubic(progress));
 }
 /** Яркость самого тоннеля: чуть гаснет к финалу, чтобы не спорить со светом портала. */
 function dimFor(progress: number, mode: Mode) {
@@ -458,6 +414,7 @@ function drawTunnel(
   starsList: Star[],
   progress: number,
   mode: Mode,
+  now: number,
 ) {
   const cx = w / 2;
   const cy = h * 0.46;
@@ -465,35 +422,53 @@ function drawTunnel(
   ctx.fillStyle = "#05070f";
   ctx.fillRect(0, 0, w, h);
 
+  // «arrived» — корабль встал. Звёзды не едут дальше по z и не оставляют
+  // хвост: только мерцают каждая в своём ритме. Иначе даже остаточная
+  // скорость 0.015 за много секунд идле-состояния накопится в заметный
+  // снос, и небо будет выглядеть не остановившимся, а просто очень
+  // медленно ползущим — то же ощущение обмана, только растянутое во времени.
+  const stopped = mode === "arrived";
   const speedMul = speedFor(progress, mode);
   const dim = dimFor(progress, mode);
 
   for (const s of starsList) {
-    s.z -= s.speed * speedMul * (dt / 16);
-    if (s.z <= 0.02) {
-      s.z = 1.15;
-      s.x = (Math.random() - 0.5) * 2;
-      s.y = (Math.random() - 0.5) * 2;
+    if (!stopped) {
+      s.z -= s.speed * speedMul * (dt / 16);
+      if (s.z <= 0.02) {
+        s.z = 1.15;
+        s.x = (Math.random() - 0.5) * 2;
+        s.y = (Math.random() - 0.5) * 2;
+      }
     }
 
     const k = 0.55 / s.z;
     const px = cx + s.x * k * w * 0.55;
     const py = cy + s.y * k * h * 0.55;
-    const prevK = 0.55 / (s.z + s.speed * speedMul * 3);
-    const prevX = cx + s.x * prevK * w * 0.55;
-    const prevY = cy + s.y * prevK * h * 0.55;
 
-    const alpha = Math.min(1, dim * (1.1 - s.z) * 1.4);
+    const base = Math.min(1, (1.1 - s.z) * 1.4);
+    let alpha: number;
+    if (stopped) {
+      // Независимое дыхание света — небо стоит, но не мертво.
+      const twinkle = 0.72 + 0.28 * Math.sin(now * 0.0015 * s.twinkleSpeed + s.twinklePhase);
+      alpha = base * twinkle * dim;
+    } else {
+      alpha = base * dim;
+    }
     if (alpha < 0.03) continue;
 
     const color = s.warm ? "255, 227, 176" : "201, 214, 240";
 
-    ctx.beginPath();
-    ctx.strokeStyle = `rgba(${color}, ${alpha * 0.8})`;
-    ctx.lineWidth = Math.max(0.6, s.size * (1.2 - s.z) * 1.1);
-    ctx.moveTo(prevX, prevY);
-    ctx.lineTo(px, py);
-    ctx.stroke();
+    if (!stopped) {
+      const prevK = 0.55 / (s.z + s.speed * speedMul * 3);
+      const prevX = cx + s.x * prevK * w * 0.55;
+      const prevY = cy + s.y * prevK * h * 0.55;
+      ctx.beginPath();
+      ctx.strokeStyle = `rgba(${color}, ${alpha * 0.8})`;
+      ctx.lineWidth = Math.max(0.6, s.size * (1.2 - s.z) * 1.1);
+      ctx.moveTo(prevX, prevY);
+      ctx.lineTo(px, py);
+      ctx.stroke();
+    }
 
     ctx.beginPath();
     ctx.fillStyle = `rgba(${color}, ${alpha})`;
