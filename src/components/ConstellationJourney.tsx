@@ -278,8 +278,25 @@ export default function ConstellationJourney({ active, onDone }: ConstellationJo
   const haloScale = Math.max(0.05, Math.pow(p, 2));
   const haloOpacity = mapRange(p, 0.04, 0.9) * 0.9;
 
-  const videoOpacity = mapRange(p, 0.84, 1);
-  const dotOpacity = 1 - videoOpacity;
+  // Видео не проступает кроссфейдом поверх точки — оно прорастает из её
+  // же центра наружу, и всё это время остаётся расфокусированным, пока
+  // мы не долетели по-настоящему. Кроссфейд между «мягким светом» и
+  // «резким кадром» всегда читается как замена одного другим, сколько
+  // секунд ему ни давай, — а не как «свет оказался движением»: контент
+  // мгновенно меняет характер, даже если непрозрачность меняется плавно.
+  // Поэтому вместо opacity управляем именно формой маски: сначала почти
+  // весь круг прозрачен, кроме едва заметной точки в центре, — та же
+  // точка, что и всегда была теплом внутри звезды, — и лишь эта точка
+  // медленно раздаётся вширь, оставаясь мутной почти до самого конца.
+  const revealT = easeInOutCubic(mapRange(p, 0.56, 1));
+  const videoCore = lerp(0.5, 46, revealT);
+  const videoEdge = lerp(24, 98, revealT);
+  const videoBlur = lerp(11, 0, revealT);
+  const videoMask = `radial-gradient(circle, black ${videoCore}%, transparent ${videoEdge}%)`;
+
+  // Тёплая точка не гаснет напротив видео — она остаётся тем самым фоном,
+  // из которого прорастает свет, и лишь чуть отступает к самому финалу.
+  const dotOpacity = lerp(1, 0.82, revealT);
 
   const portalTransition = "transform 160ms linear";
   const fadeTransition = "opacity 180ms linear";
@@ -302,26 +319,33 @@ export default function ConstellationJourney({ active, onDone }: ConstellationJo
       <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" aria-hidden />
 
       {/* Звезда-цель: горела тёплой точкой с первого кадра, теперь выросла
-          и стала видео. Внешнее гало и сама точка — разные слои: гало шире
-          и мягче, растёт чуть иначе, чем то, что внутри него светится. */}
+          и стала видео — не сменилась им, а проросла им из своего же
+          центра. Внешнее гало шире и мягче, растёт чуть иначе, чем то,
+          что внутри него светится. */}
       <div className="pointer-events-none absolute" style={{ left: "50%", top: "46%" }}>
         <div
           className="absolute rounded-full"
           style={{
-            width: "min(70vw, 480px)",
-            height: "min(70vw, 480px)",
+            width: "min(78vw, 540px)",
+            height: "min(78vw, 540px)",
             left: 0,
             top: 0,
             transform: `translate(-50%, -50%) scale(${haloScale})`,
             opacity: haloOpacity,
             background:
-              "radial-gradient(circle, rgba(255,227,176,0.22) 0%, rgba(201,214,240,0.08) 45%, transparent 72%)",
-            filter: "blur(14px)",
+              "radial-gradient(circle, rgba(255,227,176,0.24) 0%, rgba(242,197,124,0.12) 38%, rgba(201,214,240,0.06) 60%, transparent 82%)",
+            filter: "blur(22px)",
             transition: portalTransition + ", opacity 200ms linear",
           }}
         />
+        {/* Контейнер больше не обрезан в жёсткий круг: раньше overflow-hidden
+            + rounded-full давали собственную ровную границу поверх маски
+            видео, и на стыке двух разных краёв читался тонкий, но заметный
+            «диск» — именно та резкость, на которую жаловались. Теперь
+            форму целиком определяет сама маска ниже, а она растворяется
+            в пустоте намного раньше, чем кончается коробка. */}
         <div
-          className="absolute overflow-hidden rounded-full"
+          className="absolute"
           style={{
             width: "min(70vw, 420px)",
             height: "min(70vw, 420px)",
@@ -349,10 +373,10 @@ export default function ConstellationJourney({ active, onDone }: ConstellationJo
             preload="auto"
             className="absolute inset-0 h-full w-full object-cover"
             style={{
-              opacity: videoOpacity,
-              transition: "opacity 220ms linear",
-              maskImage: "radial-gradient(circle, black 64%, transparent 96%)",
-              WebkitMaskImage: "radial-gradient(circle, black 64%, transparent 96%)",
+              transition: "filter 200ms linear",
+              filter: `blur(${videoBlur}px)`,
+              maskImage: videoMask,
+              WebkitMaskImage: videoMask,
             }}
           />
         </div>
