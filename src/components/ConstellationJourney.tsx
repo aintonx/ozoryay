@@ -4,515 +4,474 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { IconSpeaker, IconSpeakerOff } from "./ui/Icons";
 
 interface ConstellationJourneyProps {
-  /** Запустить (true) / остановить и убрать. */
+  /** Запустить (true) или остановить (false) путешествие */
   active: boolean;
-  /** Когда обратный полёт закончился — вернуть управление вызывающему. */
-  onDone: () => void;
+  /** Вызывается при завершении путешествия */
+  onComplete?: () => void;
+  /** Вызывается при ручном закрытии */
+  onClose?: () => void;
 }
 
-/**
- * Формат — обязательно .mp4, не .mov. Это не прихоть: у .mov MIME-тип
- * video/quicktime, и Chrome (в отличие от Safari) вообще отказывается
- * играть его через тег <video>, каким бы кодеком видео ни было снято
- * внутри. Перепаковать (не перекодировать!) можно одной командой:
- * `ffmpeg -i исходник.mov -c copy -movflags +faststart meme-esc.mp4`.
- */
-const VIDEO_SRC = "/memes/meme-esc.mp4";
+type Phase = "intro" | "journey" | "arrival";
 
-/** Долгий разгон и подлёт — не суетимся, космос никуда не спешит. */
-const FORWARD_MS = 7600;
-/** Обратный прыжок короче и резче — как рывок назад, а не второе путешествие. */
-const REVERSE_MS = 1500;
-/** Ровно тот же порог, что в `ContentOverlay` — один и тот же жест на сайте. */
-const SWIPE = 44;
+const STARS = [
+  { x: 12, y: 18, r: 1.2, d: 0 },
+  { x: 23, y: 32, r: 0.8, d: 0.4 },
+  { x: 34, y: 14, r: 1.4, d: 0.8 },
+  { x: 47, y: 26, r: 0.9, d: 0.2 },
+  { x: 58, y: 11, r: 1.1, d: 1.2 },
+  { x: 69, y: 34, r: 1.5, d: 0.6 },
+  { x: 81, y: 20, r: 0.7, d: 1 },
+  { x: 91, y: 39, r: 1.2, d: 0.3 },
+  { x: 8, y: 58, r: 0.9, d: 1.1 },
+  { x: 19, y: 73, r: 1.4, d: 0.5 },
+  { x: 31, y: 49, r: 0.8, d: 0.7 },
+  { x: 42, y: 66, r: 1.1, d: 0.1 },
+  { x: 53, y: 82, r: 1.5, d: 0.9 },
+  { x: 65, y: 55, r: 0.7, d: 1.3 },
+  { x: 76, y: 71, r: 1.2, d: 0.4 },
+  { x: 88, y: 86, r: 0.9, d: 1.1 },
+  { x: 96, y: 61, r: 1.3, d: 0.2 },
+  { x: 5, y: 91, r: 0.7, d: 0.8 },
+  { x: 28, y: 94, r: 1.1, d: 1.4 },
+  { x: 49, y: 43, r: 0.6, d: 0.6 },
+  { x: 73, y: 47, r: 0.9, d: 1 },
+  { x: 84, y: 8, r: 1.3, d: 0.3 },
+];
 
-type Mode = "forward" | "arrived" | "reverse" | "done";
+const JOURNEY_DURATION = 9500;
+const INTRO_DURATION = 2200;
+const ARRIVAL_DURATION = 2800;
 
-function clamp01(t: number) {
-  return t < 0 ? 0 : t > 1 ? 1 : t;
-}
-function lerp(a: number, b: number, t: number) {
-  return a + (b - a) * clamp01(t);
-}
-function mapRange(t: number, a: number, b: number) {
-  return clamp01((t - a) / (b - a));
-}
-function easeInCubic(t: number) {
-  const c = clamp01(t);
-  return c * c * c;
-}
-function easeInOutCubic(t: number) {
-  const c = clamp01(t);
-  return c < 0.5 ? 4 * c * c * c : 1 - Math.pow(-2 * c + 2, 3) / 2;
-}
-
-interface Star {
-  x: number;
-  y: number;
-  z: number;
-  speed: number;
-  size: number;
-  /** Небольшая доля звёзд горит тёплым — тем же приёмом, что и в остальном небе:
-   *  холодный свет — фон, тёплый — то немногое, что особенное. */
-  warm: boolean;
-  /** Свой ритм и своя фаза мерцания — на случай, когда полёт кончился
-   *  и звёзды перестают лететь, но не должны застыть совсем мёртво. */
-  twinkleSpeed: number;
-  twinklePhase: number;
-}
-
-function makeStars(count: number): Star[] {
-  const list: Star[] = [];
-  for (let i = 0; i < count; i++) {
-    list.push({
-      x: (Math.random() - 0.5) * 2,
-      y: (Math.random() - 0.5) * 2,
-      z: Math.random() * 1.2 + 0.05,
-      speed: 0.004 + Math.random() * 0.013,
-      size: 0.6 + Math.random() * 1.8,
-      warm: Math.random() < 0.16,
-      twinkleSpeed: 0.5 + Math.random() * 1.2,
-      twinklePhase: Math.random() * Math.PI * 2,
-    });
-  }
-  return list;
-}
-
-/**
- * Кинематографическое путешествие к «Созвездию Вечного Смеха».
- *
- * Звезда-цель — это и есть видео с самого первого кадра полёта, а не
- * два разных слоя, которые сменяют друг друга в конце. Меняется не ЧТО
- * показано, а КАК: пока далеко — сильно размыто и залито тёплой дымкой
- * поверх, читается просто как тёплая точка света; чем ближе — тем дымка
- * прозрачнее и резкость выше, и настоящий кадр проступает сквозь неё же,
- * а не появляется взамен. Единственное, что вообще меняет размер, —
- * масштаб всего этого целиком по мере приближения; форма мягкого круга
- * при этом постоянна и своего отдельного роста не имеет — если бы росла
- * ещё и она, получались бы два независимых увеличения сразу, и это само
- * по себе выглядело странно.
- *
- * Торможение тоннеля и рост звезды доходят до нуля к одному и тому же
- * моменту (около середины пути), а не порознь, — иначе казалось бы, что
- * фон уже встал, а звезда всё ещё летит на нас. Когда долетели — фон
- * по-настоящему останавливается, а не просто притормаживает: звёзды
- * замирают на месте и лишь мерцают, каждая в своём ритме.
- *
- * Выход — свайп в любую сторону, ровно тот же жест, что уже закрывает
- * вспышки на небе (`ContentOverlay`): тот же порог движения пальца, та же
- * кривая, тот же «гаснущий» текст-подсказка при удержании.
- */
-export default function ConstellationJourney({ active, onDone }: ConstellationJourneyProps) {
-  const [visible, setVisible] = useState(false);
+export default function ConstellationJourney({
+  active,
+  onComplete,
+  onClose,
+}: ConstellationJourneyProps) {
+  const [phase, setPhase] = useState<Phase>("intro");
   const [progress, setProgress] = useState(0);
-  const [muted, setMuted] = useState(true);
-  const [showControls, setShowControls] = useState(false);
-  const [held, setHeld] = useState(false);
+  const [muted, setMuted] = useState(false);
 
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const startedAtRef = useRef<number | null>(null);
 
-  const modeRef = useRef<Mode>("forward");
-  const progressRef = useRef(0);
-  const startTimeRef = useRef(0);
-  const reverseStartRef = useRef(0);
-  const reverseFromRef = useRef(0);
-  const rafRef = useRef<number>(0);
-  const stars = useRef<Star[]>([]);
-  const timers = useRef<number[]>([]);
-  const doneCalledRef = useRef(false);
-  const startPointer = useRef<{ x: number; y: number } | null>(null);
-
-  const later = useCallback((fn: () => void, ms: number) => {
-    timers.current.push(window.setTimeout(fn, ms));
-  }, []);
-  const clearTimers = useCallback(() => {
-    timers.current.forEach((t) => window.clearTimeout(t));
-    timers.current = [];
+  const stopAudio = useCallback(() => {
+    if (audioContextRef.current) {
+      audioContextRef.current.close().catch(() => undefined);
+      audioContextRef.current = null;
+    }
   }, []);
 
-  // Главный цикл: старт, кадр за кадром, обратный прыжок — всё здесь.
+  const playAmbient = useCallback(() => {
+    if (muted) return;
+
+    try {
+      const AudioCtx =
+        window.AudioContext ||
+        (window as typeof window & {
+          webkitAudioContext?: typeof AudioContext;
+        }).webkitAudioContext;
+
+      if (!AudioCtx) return;
+
+      const context = new AudioCtx();
+      audioContextRef.current = context;
+
+      const master = context.createGain();
+      master.gain.setValueAtTime(0.0001, context.currentTime);
+      master.gain.exponentialRampToValueAtTime(
+        0.07,
+        context.currentTime + 2,
+      );
+      master.connect(context.destination);
+
+      const oscillator = context.createOscillator();
+      oscillator.type = "sine";
+      oscillator.frequency.setValueAtTime(55, context.currentTime);
+
+      const gain = context.createGain();
+      gain.gain.setValueAtTime(0.0001, context.currentTime);
+      gain.gain.exponentialRampToValueAtTime(
+        0.16,
+        context.currentTime + 3,
+      );
+
+      oscillator.connect(gain);
+      gain.connect(master);
+
+      const shimmer = context.createOscillator();
+      shimmer.type = "sine";
+      shimmer.frequency.setValueAtTime(220, context.currentTime);
+
+      const shimmerGain = context.createGain();
+      shimmerGain.gain.setValueAtTime(0.0001, context.currentTime);
+      shimmerGain.gain.exponentialRampToValueAtTime(
+        0.025,
+        context.currentTime + 4,
+      );
+
+      shimmer.connect(shimmerGain);
+      shimmerGain.connect(master);
+
+      oscillator.start();
+      shimmer.start();
+
+      oscillator.stop(context.currentTime + 16);
+      shimmer.stop(context.currentTime + 16);
+    } catch {
+      // Звук является декоративным элементом, поэтому молча игнорируем ошибку.
+    }
+  }, [muted]);
+
   useEffect(() => {
     if (!active) {
-      // Сам этот проход ничего не запускает: либо путешествие уже
-      // корректно свернулось собственным циклом (он сбрасывает video/rAF
-      // и вызывает onDone из requestAnimationFrame — не отсюда, поэтому
-      // sync setState здесь не нужен), либо это заканчивает cleanup-функция
-      // предыдущего запуска ниже.
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+
+      stopAudio();
+      setPhase("intro");
+      setProgress(0);
+      startedAtRef.current = null;
+
       return;
     }
 
-    const canvas = canvasRef.current;
-    const ctx = canvas?.getContext("2d") ?? null;
-    if (!canvas || !ctx) return;
-
-    setVisible(true);
-    setShowControls(false);
-    setMuted(true);
-    doneCalledRef.current = false;
-    modeRef.current = "forward";
-    progressRef.current = 0;
+    setPhase("intro");
     setProgress(0);
-    stars.current = makeStars(340);
-    startTimeRef.current = performance.now();
+    startedAtRef.current = performance.now();
 
-    const resize = () => {
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      canvas.width = window.innerWidth * dpr;
-      canvas.height = window.innerHeight * dpr;
-      canvas.style.width = `${window.innerWidth}px`;
-      canvas.style.height = `${window.innerHeight}px`;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    };
-    resize();
-    window.addEventListener("resize", resize);
+    playAmbient();
 
-    // Видео заводим сразу, приглушённым: звук браузеры разрешают надёжнее
-    // включить у УЖЕ играющего элемента, чем запустить с нуля спустя долгую
-    // паузу после нажатия. Пока портал не дорос — просто не видно.
-    const videoEl = videoRef.current;
-    if (videoEl) {
-      videoEl.currentTime = 0;
-      videoEl.muted = true;
-      void videoEl.play().catch(() => {});
-    }
+    const animate = (now: number) => {
+      const startedAt = startedAtRef.current ?? now;
+      const elapsed = now - startedAt;
 
-    let last = performance.now();
-    let lastStateUpdate = 0;
+      if (elapsed < INTRO_DURATION) {
+        setPhase("intro");
+        setProgress(0);
+      } else if (elapsed < INTRO_DURATION + JOURNEY_DURATION) {
+        setPhase("journey");
 
-    const tick = (now: number) => {
-      const mode = modeRef.current;
-      const dt = Math.min(32, now - last);
-      last = now;
+        const journeyElapsed = elapsed - INTRO_DURATION;
+        const journeyProgress = Math.min(
+          1,
+          journeyElapsed / JOURNEY_DURATION,
+        );
 
-      if (mode === "forward") {
-        const p = clamp01((now - startTimeRef.current) / FORWARD_MS);
-        progressRef.current = p;
-        if (p >= 1) {
-          modeRef.current = "arrived";
-          later(() => setShowControls(true), 450);
-        }
-      } else if (mode === "reverse") {
-        const rp = clamp01((now - reverseStartRef.current) / REVERSE_MS);
-        progressRef.current = reverseFromRef.current * (1 - easeInCubic(rp));
-        if (rp >= 1) modeRef.current = "done";
-      }
+        setProgress(journeyProgress);
+      } else if (
+        elapsed <
+        INTRO_DURATION + JOURNEY_DURATION + ARRIVAL_DURATION
+      ) {
+        setPhase("arrival");
+        setProgress(1);
+      } else {
+        setPhase("arrival");
+        setProgress(1);
 
-      drawTunnel(ctx, window.innerWidth, window.innerHeight, dt, stars.current, progressRef.current, modeRef.current, now);
+        animationFrameRef.current = null;
+        stopAudio();
+        onComplete?.();
 
-      if (now - lastStateUpdate > 45) {
-        lastStateUpdate = now;
-        setProgress(progressRef.current);
-      }
-
-      if (modeRef.current === "done") {
-        if (!doneCalledRef.current) {
-          doneCalledRef.current = true;
-          setVisible(false);
-          onDone();
-        }
         return;
       }
 
-      rafRef.current = requestAnimationFrame(tick);
+      animationFrameRef.current = requestAnimationFrame(animate);
     };
 
-    rafRef.current = requestAnimationFrame(tick);
+    animationFrameRef.current = requestAnimationFrame(animate);
 
     return () => {
-      window.removeEventListener("resize", resize);
-      cancelAnimationFrame(rafRef.current);
-      clearTimers();
-      if (videoEl) {
-        videoEl.pause();
-        videoEl.currentTime = 0;
-        videoEl.muted = true;
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
       }
-      modeRef.current = "forward";
-      progressRef.current = 0;
+
+      stopAudio();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active]);
+  }, [active, onComplete, playAmbient, stopAudio]);
 
-  const beginExit = useCallback(() => {
-    if (modeRef.current === "reverse" || modeRef.current === "done") return;
-    modeRef.current = "reverse";
-    setShowControls(false);
-    reverseFromRef.current = progressRef.current;
-    reverseStartRef.current = performance.now();
-    const v = videoRef.current;
-    if (v) later(() => v.pause(), 260);
-  }, [later]);
+  useEffect(() => {
+    if (!active) return;
 
-  const onPointerDown = (e: React.PointerEvent) => {
-    if (modeRef.current !== "arrived") return;
-    if ((e.target as HTMLElement).closest("button")) return;
-    startPointer.current = { x: e.clientX, y: e.clientY };
-    setHeld(true);
-  };
-  const onPointerMove = (e: React.PointerEvent) => {
-    const s = startPointer.current;
-    if (!s) return;
-    if (Math.hypot(e.clientX - s.x, e.clientY - s.y) > SWIPE) {
-      startPointer.current = null;
-      setHeld(false);
-      beginExit();
+    if (muted) {
+      stopAudio();
+      return;
     }
-  };
-  const endPointer = () => {
-    startPointer.current = null;
-    setHeld(false);
-  };
 
-  const toggleMute = () => {
-    const v = videoRef.current;
-    if (!v) return;
-    v.muted = !v.muted;
-    setMuted(v.muted);
-  };
+    if (audioContextRef.current) return;
 
-  if (!active && !visible) return null;
+    playAmbient();
+  }, [active, muted, playAmbient, stopAudio]);
 
-  // --- всё ниже — чистые функции одного и того же progress, без своего состояния ---
-  const p = progress;
+  if (!active) return null;
 
-  const growthT = mapRange(p, 0, 0.55);
-  const starGrowth = Math.pow(growthT, 2.4);
-  const portalScale = Math.max(0.018, starGrowth);
-  const haloScale = Math.max(0.05, Math.pow(growthT, 1.8));
-  const haloOpacity = mapRange(p, 0.04, 0.5) * 0.9;
+  const journeyScale = 1 + progress * 5.5;
+  const tunnelOpacity =
+    phase === "journey"
+      ? Math.min(1, progress * 3)
+      : phase === "arrival"
+        ? 1
+        : 0;
 
-  // Звезда — это и есть видео с первого кадра полёта, не два разных слоя,
-  // которые сменяют друг друга. Меняется не ЧТО показано, а КАК: пока
-  // далеко — сильно размыто и залито тёплой дымкой поверх, почти не видно
-  // самого кадра, только тёплый свет; чем ближе — тем дымка прозрачнее
-  // и резкость выше, кадр проступает сквозь неё же, а не появляется
-  // взамен неё. Одна и та же кривая на протяжении всего полёта, а не
-  // отдельное окно только в конце, — отсюда и «якобы всегда было
-  // включено».
-  //
-  // Форма мягкого круга — ПОСТОЯННАЯ, не растёт отдельно от размера:
-  // единственное, что вообще меняет размер звезды-видео, — это масштаб
-  // контейнера (portalScale) чуть выше, тот же самый, что и у гало. Если
-  // ещё и маска растёт своим радиусом поверх этого — получаются два
-  // независимых роста сразу, и именно это читалось как «странно
-  // увеличивается» при приближении.
-  const clarity = easeInOutCubic(p);
-  const videoBlur = lerp(16, 0, clarity);
-  const warmthOpacity = lerp(0.95, 0.06, clarity);
-  // circle closest-side — не просто «circle»: без этого ключевого слова
-  // проценты меряются до дальнего угла коробки, а не до её края, и на
-  // квадратном контейнере край почти не успевает погаснуть до самых углов —
-  // видимый результат выглядит квадратом со слегка скруглёнными уголками,
-  // а не кругом.
-  const videoMask = "radial-gradient(circle closest-side, black 50%, transparent 92%)";
+  const destinationOpacity =
+    phase === "arrival"
+      ? 1
+      : Math.max(0, (progress - 0.82) / 0.18);
 
-  const portalTransition = "transform 160ms linear";
-  const fadeTransition = "opacity 180ms linear";
+  const showIntro = phase === "intro";
 
   return (
     <div
-      className="fixed inset-0 z-50 overflow-hidden"
-      style={{
-        touchAction: "none",
-        opacity: visible && active ? 1 : 0,
-        transition: "opacity 700ms ease",
-        background: "var(--color-night-deep)",
-        pointerEvents: visible && active ? "auto" : "none",
-      }}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={endPointer}
-      onPointerCancel={endPointer}
+      className="fixed inset-0 z-[100] overflow-hidden bg-[#020205] text-white"
+      aria-label="Путешествие по созвездиям"
+      role="dialog"
+      aria-modal="true"
     >
-      <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" aria-hidden />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,#141321_0%,#07070c_42%,#020205_78%)]" />
 
-      {/* Звезда-цель — видео с первого кадра, просто пока залито тёплым
-          и размыто. Внешнее гало шире и мягче, растёт чуть иначе, чем то,
-          что внутри него светится, но по той же самой идее — приближение. */}
-      <div className="pointer-events-none absolute" style={{ left: "50%", top: "46%" }}>
+      <div
+        className="absolute inset-0 opacity-40"
+        style={{
+          backgroundImage:
+            "linear-gradient(rgba(255,255,255,0.018) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.018) 1px, transparent 1px)",
+          backgroundSize: "80px 80px",
+        }}
+      />
+
+      <div className="absolute inset-0 overflow-hidden">
+        {STARS.map((star, index) => {
+          const centerX = 50;
+          const centerY = 50;
+
+          const dx = star.x - centerX;
+          const dy = star.y - centerY;
+
+          const x =
+            phase === "journey"
+              ? centerX + dx * journeyScale
+              : star.x;
+
+          const y =
+            phase === "journey"
+              ? centerY + dy * journeyScale
+              : star.y;
+
+          const opacity =
+            phase === "intro"
+              ? 0.25 + ((index % 5) / 5) * 0.55
+              : phase === "journey"
+                ? Math.max(0, 1 - progress * 0.65)
+                : 0.12;
+
+          return (
+            <span
+              key={`${star.x}-${star.y}-${index}`}
+              className="absolute rounded-full bg-white"
+              style={{
+                left: `${x}%`,
+                top: `${y}%`,
+                width: `${star.r * 2}px`,
+                height: `${star.r * 2}px`,
+                opacity,
+                transform: "translate(-50%, -50%)",
+                boxShadow:
+                  star.r > 1
+                    ? `0 0 ${star.r * 5}px rgba(255,255,255,0.85)`
+                    : "0 0 4px rgba(255,255,255,0.55)",
+                transition:
+                  phase === "journey"
+                    ? "left 80ms linear, top 80ms linear, opacity 120ms linear"
+                    : "opacity 350ms ease",
+                animation: `constellationTwinkle 2.8s ${star.d}s ease-in-out infinite alternate`,
+              }}
+            />
+          );
+        })}
+      </div>
+
+      <div
+        className="absolute left-1/2 top-1/2 h-[2px] w-[2px] rounded-full bg-white"
+        style={{
+          transform: `translate(-50%, -50%) scale(${phase === "journey" ? 1 + progress * 20 : 1})`,
+          opacity: phase === "journey" ? 0.25 + progress * 0.7 : 0,
+          boxShadow:
+            "0 0 25px 8px rgba(255,255,255,0.25), 0 0 100px 35px rgba(120,110,255,0.12)",
+          transition: "transform 120ms linear, opacity 200ms ease",
+        }}
+      />
+
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          opacity: tunnelOpacity,
+          background:
+            "radial-gradient(circle at center, transparent 0%, transparent 4%, rgba(110,90,255,0.05) 14%, rgba(255,255,255,0.02) 25%, transparent 42%)",
+        }}
+      />
+
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          opacity: phase === "journey" ? Math.min(0.7, progress * 0.9) : 0,
+          background:
+            "radial-gradient(ellipse at center, rgba(255,255,255,0.12) 0%, rgba(173,154,255,0.05) 20%, transparent 60%)",
+          transform: `scale(${1 + progress * 1.8})`,
+          transition: "opacity 200ms ease, transform 120ms linear",
+        }}
+      />
+
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          opacity:
+            phase === "arrival"
+              ? Math.min(
+                  0.95,
+                  0.3 +
+                    ((performance.now() -
+                      (startedAtRef.current ?? performance.now()) -
+                      INTRO_DURATION -
+                      JOURNEY_DURATION) /
+                      ARRIVAL_DURATION) *
+                      0.7,
+                )
+              : 0,
+          background:
+            "radial-gradient(circle at 50% 48%, rgba(255,255,255,0.95) 0%, rgba(232,226,255,0.55) 8%, rgba(161,136,255,0.2) 25%, transparent 52%)",
+          transition: "opacity 800ms ease",
+        }}
+      />
+
+      <div className="absolute left-1/2 top-1/2 z-10 flex w-full max-w-3xl -translate-x-1/2 -translate-y-1/2 flex-col items-center px-6 text-center">
         <div
-          className="absolute rounded-full"
+          className="transition-all duration-1000 ease-out"
           style={{
-            width: "min(78vw, 540px)",
-            height: "min(78vw, 540px)",
-            left: 0,
-            top: 0,
-            transform: `translate(-50%, -50%) scale(${haloScale})`,
-            opacity: haloOpacity,
-            background:
-              "radial-gradient(circle closest-side, rgba(255,227,176,0.24) 0%, rgba(242,197,124,0.12) 38%, rgba(201,214,240,0.06) 60%, transparent 82%)",
-            filter: "blur(22px)",
-            transition: portalTransition + ", opacity 200ms linear",
-          }}
-        />
-        {/* Контейнер не обрезан в жёсткий круг: overflow-hidden + rounded-full
-            дали бы собственную ровную границу поверх маски видео, и на
-            стыке двух разных краёв читался бы тонкий, но заметный «диск».
-            Форму целиком определяет маска на самом видео, а она растворяется
-            в пустоте намного раньше, чем кончается коробка. Масштаб —
-            единственное, что здесь вообще меняется по ходу приближения. */}
-        <div
-          className="absolute"
-          style={{
-            width: "min(70vw, 420px)",
-            height: "min(70vw, 420px)",
-            left: 0,
-            top: 0,
-            transform: `translate(-50%, -50%) scale(${portalScale})`,
-            transition: portalTransition,
+            opacity: showIntro ? 1 : 0,
+            transform: showIntro
+              ? "translateY(0px) scale(1)"
+              : "translateY(-20px) scale(0.97)",
+            pointerEvents: showIntro ? "auto" : "none",
           }}
         >
-          <video
-            ref={videoRef}
-            src={VIDEO_SRC}
-            loop
-            playsInline
-            muted={muted}
-            preload="auto"
-            className="absolute inset-0 h-full w-full object-cover"
-            style={{
-              transition: "filter 200ms linear",
-              filter: `blur(${videoBlur}px)`,
-              maskImage: videoMask,
-              WebkitMaskImage: videoMask,
-            }}
-          />
-          {/* Тёплая дымка поверх того же самого кадра — не отдельный слой
-              вместо видео, а вуаль НАД ним, которая с приближением редеет
-              и открывает то, что было под ней всё это время. */}
-          <div
-            className="absolute inset-0"
-            style={{
-              opacity: warmthOpacity,
-              transition: fadeTransition,
-              maskImage: videoMask,
-              WebkitMaskImage: videoMask,
-              background:
-                "radial-gradient(circle at 50% 50%, #fff6e4 0%, rgba(255,227,176,0.92) 22%, rgba(242,197,124,0.55) 45%, rgba(242,197,124,0.12) 68%, transparent 85%)",
-            }}
-          />
+          <div className="mb-6 text-[10px] font-medium uppercase tracking-[0.5em] text-white/45 sm:text-xs">
+            Apertura
+          </div>
+
+          <h1 className="font-serif text-4xl font-light tracking-tight text-white sm:text-6xl md:text-7xl">
+            Путешествие начинается
+          </h1>
+
+          <p className="mx-auto mt-6 max-w-md text-sm leading-7 text-white/45 sm:text-base">
+            Один импульс.
+            <br />
+            Одно направление.
+            <br />
+            И бесконечность между ними.
+          </p>
+        </div>
+
+        <div
+          className="absolute w-full transition-all duration-700 ease-out"
+          style={{
+            opacity: phase === "journey" ? 1 : 0,
+            transform:
+              phase === "journey"
+                ? "translateY(0px)"
+                : "translateY(14px)",
+          }}
+        >
+          <div className="text-[10px] font-medium uppercase tracking-[0.5em] text-white/35 sm:text-xs">
+            Сигнал принят
+          </div>
+
+          <div className="mt-6 font-serif text-2xl font-light text-white/90 sm:text-4xl">
+            Следуй за светом
+          </div>
+
+          <div className="mx-auto mt-8 h-px w-44 overflow-hidden bg-white/10">
+            <div
+              className="h-full bg-white/80 transition-[width] duration-100"
+              style={{ width: `${progress * 100}%` }}
+            />
+          </div>
+
+          <div className="mt-3 text-[10px] tracking-[0.25em] text-white/30">
+            {Math.round(progress * 100)}%
+          </div>
+        </div>
+
+        <div
+          className="absolute w-full transition-all duration-[1200ms] ease-out"
+          style={{
+            opacity: destinationOpacity,
+            transform:
+              destinationOpacity > 0
+                ? "translateY(0px) scale(1)"
+                : "translateY(24px) scale(0.98)",
+          }}
+        >
+          <div className="mb-5 text-[10px] uppercase tracking-[0.55em] text-white/45">
+            Координаты совпали
+          </div>
+
+          <div className="font-serif text-4xl font-light tracking-tight text-white sm:text-6xl">
+            Ты прибыл
+          </div>
+
+          <p className="mx-auto mt-6 max-w-md text-sm leading-7 text-white/50 sm:text-base">
+            Некоторые вещи находят нас
+            <br />
+            раньше, чем мы успеваем
+            <br />
+            начать их искать.
+          </p>
         </div>
       </div>
 
-      {/* Управление: звук и подсказка выхода — тот же корпус и та же кривая,
-          что у полосы внизу `ContentOverlay`. */}
-      <div
-        className="pointer-events-auto absolute inset-x-0 bottom-0 flex flex-col items-center gap-[0.6rem] px-[1.15rem] pb-[max(1.5rem,env(safe-area-inset-bottom))]"
-        style={{
-          transform: showControls ? "translate3d(0,0,0)" : "translate3d(0, 120%, 0)",
-          transition: "transform 520ms cubic-bezier(0.32, 0.72, 0, 1)",
-        }}
-      >
+      <div className="absolute left-0 right-0 top-0 z-20 flex items-center justify-between px-5 py-5 sm:px-8 sm:py-7">
         <button
           type="button"
-          onClick={(e) => {
-            if (e.detail > 0) e.currentTarget.blur();
-            toggleMute();
-          }}
-          className="glass font-system flex items-center gap-[0.5em] rounded-full py-[0.7rem] pr-[1.25rem] pl-[1.05rem] text-[13px] font-medium text-star/90 transition-transform duration-300 active:scale-[0.97]"
+          onClick={() => setMuted((value) => !value)}
+          className="group flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-black/10 text-white/55 backdrop-blur-sm transition hover:border-white/25 hover:text-white"
+          aria-label={muted ? "Включить звук" : "Выключить звук"}
         >
-          {muted ? <IconSpeakerOff size={16} className="text-amber/90" /> : <IconSpeaker size={16} className="text-amber/90" />}
-          {muted ? "включить звук" : "выключить звук"}
+          {muted ? (
+            <IconSpeakerOff className="h-4 w-4" />
+          ) : (
+            <IconSpeaker className="h-4 w-4" />
+          )}
         </button>
-        <span
-          className="font-system caption text-[12px] font-medium tracking-[0.05em] text-star transition-opacity duration-300"
-          style={{ opacity: held ? 0.25 : 1 }}
-        >
-          смахни, чтобы вернуться
-        </span>
+
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-[10px] uppercase tracking-[0.28em] text-white/30 transition hover:text-white/75"
+          >
+            Пропустить
+          </button>
+        )}
       </div>
+
+      <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-40 bg-gradient-to-t from-[#020205] via-[#020205]/30 to-transparent" />
+
+      <style jsx>{`
+        @keyframes constellationTwinkle {
+          0% {
+            opacity: 0.35;
+            transform: translate(-50%, -50%) scale(0.85);
+          }
+
+          100% {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1.2);
+          }
+        }
+      `}</style>
     </div>
   );
-}
-
-/**
- * Скорость тоннеля: быстро в начале, гасится к моменту прибытия почти
- * до нуля — не «медленнее», а по-настоящему «встали». Гасится к p=0.48,
- * чуть раньше, чем заканчивается рост звезды (p=0.55): торможение должно
- * завершиться первым, звезда — чуть позже него, и только тогда, когда
- * оба процесса действительно кончились, начинает раскрываться видео —
- * без пересечения, где одно как будто уже встало, а другое всё ещё летит.
- */
-function speedFor(progress: number, mode: Mode) {
-  if (mode === "reverse") return 3.2;
-  const t = mapRange(progress, 0, 0.48);
-  return lerp(2.2, 0.015, easeInOutCubic(t));
-}
-/** Яркость самого тоннеля: чуть гаснет по мере роста звезды, чтобы не спорить с её светом. */
-function dimFor(progress: number, mode: Mode) {
-  if (mode === "reverse") return 1;
-  if (progress > 0.35) return lerp(1, 0.5, mapRange(progress, 0.35, 0.55));
-  return 1;
-}
-
-function drawTunnel(
-  ctx: CanvasRenderingContext2D,
-  w: number,
-  h: number,
-  dt: number,
-  starsList: Star[],
-  progress: number,
-  mode: Mode,
-  now: number,
-) {
-  const cx = w / 2;
-  const cy = h * 0.46;
-
-  ctx.fillStyle = "#05070f";
-  ctx.fillRect(0, 0, w, h);
-
-  // «arrived» — корабль встал. Звёзды не едут дальше по z и не оставляют
-  // хвост: только мерцают каждая в своём ритме. Иначе даже остаточная
-  // скорость 0.015 за много секунд идле-состояния накопится в заметный
-  // снос, и небо будет выглядеть не остановившимся, а просто очень
-  // медленно ползущим — то же ощущение обмана, только растянутое во времени.
-  const stopped = mode === "arrived";
-  const speedMul = speedFor(progress, mode);
-  const dim = dimFor(progress, mode);
-
-  for (const s of starsList) {
-    if (!stopped) {
-      s.z -= s.speed * speedMul * (dt / 16);
-      if (s.z <= 0.02) {
-        s.z = 1.15;
-        s.x = (Math.random() - 0.5) * 2;
-        s.y = (Math.random() - 0.5) * 2;
-      }
-    }
-
-    const k = 0.55 / s.z;
-    const px = cx + s.x * k * w * 0.55;
-    const py = cy + s.y * k * h * 0.55;
-
-    const base = Math.min(1, (1.1 - s.z) * 1.4);
-    let alpha: number;
-    if (stopped) {
-      // Независимое дыхание света — небо стоит, но не мертво.
-      const twinkle = 0.72 + 0.28 * Math.sin(now * 0.0015 * s.twinkleSpeed + s.twinklePhase);
-      alpha = base * twinkle * dim;
-    } else {
-      alpha = base * dim;
-    }
-    if (alpha < 0.03) continue;
-
-    const color = s.warm ? "255, 227, 176" : "201, 214, 240";
-
-    if (!stopped) {
-      const prevK = 0.55 / (s.z + s.speed * speedMul * 3);
-      const prevX = cx + s.x * prevK * w * 0.55;
-      const prevY = cy + s.y * prevK * h * 0.55;
-      ctx.beginPath();
-      ctx.strokeStyle = `rgba(${color}, ${alpha * 0.8})`;
-      ctx.lineWidth = Math.max(0.6, s.size * (1.2 - s.z) * 1.1);
-      ctx.moveTo(prevX, prevY);
-      ctx.lineTo(px, py);
-      ctx.stroke();
-    }
-
-    ctx.beginPath();
-    ctx.fillStyle = `rgba(${color}, ${alpha})`;
-    ctx.arc(px, py, Math.max(0.4, s.size * (1.15 - s.z) * 0.55), 0, Math.PI * 2);
-    ctx.fill();
-  }
 }
