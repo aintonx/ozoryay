@@ -60,7 +60,7 @@ export default function SkyScreen({ onSpark, hint, onBack }: SkyScreenProps) {
         <WidgetButton
           icon={<IconSparkleStar />}
           label="Созвездие Вечного Смеха"
-          hint="Отправиться в путешествие"
+          hint="отправиться в путешествие"
           onClick={() => onSpark("laugh")}
         />
         <WidgetButton
