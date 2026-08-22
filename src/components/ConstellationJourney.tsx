@@ -21,12 +21,16 @@ const VIDEO_SRC = "/memes/meme-esc.mp4";
 
 /** Долгий разгон и подлёт — не суетимся, космос никуда не спешит. */
 const FORWARD_MS = 7600;
-/** Обратный прыжок короче и резче — как рывок назад, а не второе путешествие. */
-const REVERSE_MS = 1500;
+/** Звезда сворачивается обратно — та же кривая, что открывала её, только быстрее. */
+const CLOSE_MS = 950;
+/** Настоящий рывок назад тоннелем — уже после того, как звезда свернулась. */
+const REVERSE_MS = 1300;
+/** Кнопка звука появляется рано: видео и так играет с первого кадра. */
+const CONTROLS_DELAY_MS = 1400;
 /** Ровно тот же порог, что в `ContentOverlay` — один и тот же жест на сайте. */
 const SWIPE = 44;
 
-type Mode = "forward" | "arrived" | "reverse" | "done";
+type Mode = "forward" | "arrived" | "closing" | "reverse" | "done";
 
 function clamp01(t: number) {
   return t < 0 ? 0 : t > 1 ? 1 : t;
@@ -81,26 +85,27 @@ function makeStars(count: number): Star[] {
 /**
  * Кинематографическое путешествие к «Созвездию Вечного Смеха».
  *
- * Звезда-цель — это и есть видео с самого первого кадра полёта, а не
- * два разных слоя, которые сменяют друг друга в конце. Меняется не ЧТО
- * показано, а КАК: пока далеко — сильно размыто и залито тёплой дымкой
- * поверх, читается просто как тёплая точка света; чем ближе — тем дымка
- * прозрачнее и резкость выше, и настоящий кадр проступает сквозь неё же,
- * а не появляется взамен. Единственное, что вообще меняет размер, —
- * масштаб всего этого целиком по мере приближения; форма мягкого круга
- * при этом постоянна и своего отдельного роста не имеет — если бы росла
- * ещё и она, получались бы два независимых увеличения сразу, и это само
- * по себе выглядело странно.
+ * Звезда-цель — это и есть видео с самого первого кадра полёта. Меняется
+ * не ЧТО показано, а КАК: пока далеко — сильно размыто и залито тёплой
+ * дымкой поверх, читается просто как тёплая точка света; чем ближе — тем
+ * дымка прозрачнее и резкость выше, и настоящий кадр проступает сквозь
+ * неё же, а не появляется взамен. Единственное, что вообще меняет
+ * размер, — масштаб всего этого целиком; форма мягкого круга постоянна.
  *
- * Торможение тоннеля и рост звезды доходят до нуля к одному и тому же
- * моменту (около середины пути), а не порознь, — иначе казалось бы, что
- * фон уже встал, а звезда всё ещё летит на нас. Когда долетели — фон
- * по-настоящему останавливается, а не просто притормаживает: звёзды
- * замирают на месте и лишь мерцают, каждая в своём ритме.
+ * Три кривые — скорость тоннеля, рост звезды, ясность видео — идут по
+ * одному и тому же `progress` от начала до конца полёта и доходят до
+ * своего предела ровно вместе, к самому прибытию: лёгкое движение фона
+ * сохраняется вплоть до финального размера звезды, а не гаснет заранее.
+ * Резкая, полностью неподвижная остановка наступает только после этого,
+ * в режиме `arrived`.
  *
- * Выход — свайп в любую сторону, ровно тот же жест, что уже закрывает
- * вспышки на небе (`ContentOverlay`): тот же порог движения пальца, та же
- * кривая, тот же «гаснущий» текст-подсказка при удержании.
+ * Выход — три части, а не одна. Свайп сперва СВОРАЧИВАЕТ звезду: та же
+ * самая кривая, что её открывала, только в обратную сторону и быстрее, —
+ * ровно то же самое «удаление», что мы видели при входе, просто задом
+ * наперёд. Только когда звезда уже свернулась, начинается настоящий
+ * обратный полёт тоннелем — и это по-настоящему обратное движение:
+ * звёзды не «летят вперёд быстрее», а удаляются к горизонту и гаснут,
+ * сходясь к центру, а не расходясь от него.
  */
 export default function ConstellationJourney({ active, onDone }: ConstellationJourneyProps) {
   const [visible, setVisible] = useState(false);
@@ -115,8 +120,8 @@ export default function ConstellationJourney({ active, onDone }: ConstellationJo
   const modeRef = useRef<Mode>("forward");
   const progressRef = useRef(0);
   const startTimeRef = useRef(0);
+  const closeStartRef = useRef(0);
   const reverseStartRef = useRef(0);
-  const reverseFromRef = useRef(0);
   const rafRef = useRef<number>(0);
   const stars = useRef<Star[]>([]);
   const timers = useRef<number[]>([]);
@@ -131,7 +136,8 @@ export default function ConstellationJourney({ active, onDone }: ConstellationJo
     timers.current = [];
   }, []);
 
-  // Главный цикл: старт, кадр за кадром, обратный прыжок — всё здесь.
+  // Главный цикл: старт, кадр за кадром, всё сворачивание и обратный
+  // полёт — всё здесь.
   useEffect(() => {
     if (!active) {
       // Сам этот проход ничего не запускает: либо путешествие уже
@@ -155,6 +161,7 @@ export default function ConstellationJourney({ active, onDone }: ConstellationJo
     setProgress(0);
     stars.current = makeStars(340);
     startTimeRef.current = performance.now();
+    later(() => setShowControls(true), CONTROLS_DELAY_MS);
 
     const resize = () => {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -169,7 +176,8 @@ export default function ConstellationJourney({ active, onDone }: ConstellationJo
 
     // Видео заводим сразу, приглушённым: звук браузеры разрешают надёжнее
     // включить у УЖЕ играющего элемента, чем запустить с нуля спустя долгую
-    // паузу после нажатия. Пока портал не дорос — просто не видно.
+    // паузу после нажатия. Оно и правда играет с первого кадра — просто
+    // пока неразличимо под размытием и тёплой дымкой.
     const videoEl = videoRef.current;
     if (videoEl) {
       videoEl.currentTime = 0;
@@ -188,13 +196,24 @@ export default function ConstellationJourney({ active, onDone }: ConstellationJo
       if (mode === "forward") {
         const p = clamp01((now - startTimeRef.current) / FORWARD_MS);
         progressRef.current = p;
-        if (p >= 1) {
-          modeRef.current = "arrived";
-          later(() => setShowControls(true), 450);
+        if (p >= 1) modeRef.current = "arrived";
+      } else if (mode === "closing") {
+        // Та же самая кривая, что растила звезду при входе, — прогнанная
+        // назад, от 1 к 0, и заметно быстрее. Ничего специального для
+        // самого свечения/резкости считать не нужно: те формулы ниже уже
+        // читают progress напрямую, так что убывающий progress сам даёт
+        // ровно обратную анимацию открытия.
+        const t = clamp01((now - closeStartRef.current) / CLOSE_MS);
+        progressRef.current = lerp(1, 0, easeInCubic(t));
+        if (t >= 1) {
+          modeRef.current = "reverse";
+          reverseStartRef.current = now;
         }
       } else if (mode === "reverse") {
+        // Звезда уже свёрнута (progress держим на 0) — дальше это чистый
+        // рывок тоннелем назад, без неё.
+        progressRef.current = 0;
         const rp = clamp01((now - reverseStartRef.current) / REVERSE_MS);
-        progressRef.current = reverseFromRef.current * (1 - easeInCubic(rp));
         if (rp >= 1) modeRef.current = "done";
       }
 
@@ -235,13 +254,14 @@ export default function ConstellationJourney({ active, onDone }: ConstellationJo
   }, [active]);
 
   const beginExit = useCallback(() => {
-    if (modeRef.current === "reverse" || modeRef.current === "done") return;
-    modeRef.current = "reverse";
+    if (modeRef.current !== "arrived") return;
+    modeRef.current = "closing";
     setShowControls(false);
-    reverseFromRef.current = progressRef.current;
-    reverseStartRef.current = performance.now();
+    closeStartRef.current = performance.now();
     const v = videoRef.current;
-    if (v) later(() => v.pause(), 260);
+    // Пауза — где-то в середине сворачивания: к этому моменту кадр уже
+    // достаточно размыт и потушен дымкой, останавливать раньше незачем.
+    if (v) later(() => v.pause(), CLOSE_MS * 0.55);
   }, [later]);
 
   const onPointerDown = (e: React.PointerEvent) => {
@@ -276,35 +296,29 @@ export default function ConstellationJourney({ active, onDone }: ConstellationJo
   // --- всё ниже — чистые функции одного и того же progress, без своего состояния ---
   const p = progress;
 
-  const growthT = mapRange(p, 0, 0.55);
-  const starGrowth = Math.pow(growthT, 2.4);
+  // Рост звезды и торможение тоннеля (см. speedFor ниже) идут по одному
+  // и тому же p от 0 до 1, без отдельно settle-ящихся окон: раньше
+  // тоннель успокаивался заметно раньше, чем заканчивался рост звезды,
+  // и получалось «фон уже встал, а звезда всё ещё летит» — ровно то,
+  // на что жаловались. Форма мягкого круга при этом ПОСТОЯННА — растёт
+  // только масштаб контейнера целиком, а не ещё и маска сама по себе:
+  // если бы росло и то и другое — получались бы два независимых
+  // увеличения сразу.
+  const starGrowth = Math.pow(p, 2.6);
   const portalScale = Math.max(0.018, starGrowth);
-  const haloScale = Math.max(0.05, Math.pow(growthT, 1.8));
-  const haloOpacity = mapRange(p, 0.04, 0.5) * 0.9;
+  const haloScale = Math.max(0.05, Math.pow(p, 2));
+  const haloOpacity = mapRange(p, 0.04, 0.9) * 0.9;
 
-  // Звезда — это и есть видео с первого кадра полёта, не два разных слоя,
-  // которые сменяют друг друга. Меняется не ЧТО показано, а КАК: пока
-  // далеко — сильно размыто и залито тёплой дымкой поверх, почти не видно
-  // самого кадра, только тёплый свет; чем ближе — тем дымка прозрачнее
-  // и резкость выше, кадр проступает сквозь неё же, а не появляется
-  // взамен неё. Одна и та же кривая на протяжении всего полёта, а не
-  // отдельное окно только в конце, — отсюда и «якобы всегда было
-  // включено».
-  //
-  // Форма мягкого круга — ПОСТОЯННАЯ, не растёт отдельно от размера:
-  // единственное, что вообще меняет размер звезды-видео, — это масштаб
-  // контейнера (portalScale) чуть выше, тот же самый, что и у гало. Если
-  // ещё и маска растёт своим радиусом поверх этого — получаются два
-  // независимых роста сразу, и именно это читалось как «странно
-  // увеличивается» при приближении.
+  // Звезда — это и есть видео с первого кадра, не два разных слоя. Пока
+  // далеко — сильно размыто и залито тёплой дымкой поверх; чем ближе —
+  // тем дымка прозрачнее и резкость выше, кадр проступает сквозь неё же.
   const clarity = easeInOutCubic(p);
   const videoBlur = lerp(16, 0, clarity);
   const warmthOpacity = lerp(0.95, 0.06, clarity);
   // circle closest-side — не просто «circle»: без этого ключевого слова
   // проценты меряются до дальнего угла коробки, а не до её края, и на
   // квадратном контейнере край почти не успевает погаснуть до самых углов —
-  // видимый результат выглядит квадратом со слегка скруглёнными уголками,
-  // а не кругом.
+  // видимый результат выглядит квадратом со слегка скруглёнными уголками.
   const videoMask = "radial-gradient(circle closest-side, black 50%, transparent 92%)";
 
   const portalTransition = "transform 160ms linear";
@@ -328,8 +342,8 @@ export default function ConstellationJourney({ active, onDone }: ConstellationJo
       <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" aria-hidden />
 
       {/* Звезда-цель — видео с первого кадра, просто пока залито тёплым
-          и размыто. Внешнее гало шире и мягче, растёт чуть иначе, чем то,
-          что внутри него светится, но по той же самой идее — приближение. */}
+          и размыто. Внешнее гало шире и мягче, растёт по тому же самому
+          progress, что и всё остальное. */}
       <div className="pointer-events-none absolute" style={{ left: "50%", top: "46%" }}>
         <div
           className="absolute rounded-full"
@@ -346,12 +360,8 @@ export default function ConstellationJourney({ active, onDone }: ConstellationJo
             transition: portalTransition + ", opacity 200ms linear",
           }}
         />
-        {/* Контейнер не обрезан в жёсткий круг: overflow-hidden + rounded-full
-            дали бы собственную ровную границу поверх маски видео, и на
-            стыке двух разных краёв читался бы тонкий, но заметный «диск».
-            Форму целиком определяет маска на самом видео, а она растворяется
-            в пустоте намного раньше, чем кончается коробка. Масштаб —
-            единственное, что здесь вообще меняется по ходу приближения. */}
+        {/* Контейнер не обрезан в жёсткий круг — форму целиком определяет
+            маска ниже. Масштаб — единственное, что здесь меняет размер. */}
         <div
           className="absolute"
           style={{
@@ -363,40 +373,49 @@ export default function ConstellationJourney({ active, onDone }: ConstellationJo
             transition: portalTransition,
           }}
         >
-          <video
-            ref={videoRef}
-            src={VIDEO_SRC}
-            loop
-            playsInline
-            muted={muted}
-            preload="auto"
-            className="absolute inset-0 h-full w-full object-cover"
-            style={{
-              transition: "filter 200ms linear",
-              filter: `blur(${videoBlur}px)`,
-              maskImage: videoMask,
-              WebkitMaskImage: videoMask,
-            }}
-          />
-          {/* Тёплая дымка поверх того же самого кадра — не отдельный слой
-              вместо видео, а вуаль НАД ним, которая с приближением редеет
-              и открывает то, что было под ней всё это время. */}
+          {/* Маска и блюр — на ОДНОЙ обёртке над видео и дымкой вместе,
+              а не порознь на каждом слое: раньше блюр стоял только на
+              видео, а у дымки (та же маска, но без блюра) край оставался
+              резче — на стыке двух по-разному смягчённых краёв был виден
+              шов. Теперь у них общий край, потому что они в буквальном
+              смысле один и тот же размытый кусок. */}
           <div
             className="absolute inset-0"
             style={{
-              opacity: warmthOpacity,
-              transition: fadeTransition,
               maskImage: videoMask,
               WebkitMaskImage: videoMask,
-              background:
-                "radial-gradient(circle at 50% 50%, #fff6e4 0%, rgba(255,227,176,0.92) 22%, rgba(242,197,124,0.55) 45%, rgba(242,197,124,0.12) 68%, transparent 85%)",
+              filter: `blur(${videoBlur}px)`,
+              transition: "filter 200ms linear",
             }}
-          />
+          >
+            <video
+              ref={videoRef}
+              src={VIDEO_SRC}
+              loop
+              playsInline
+              muted={muted}
+              preload="auto"
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+            <div
+              className="absolute inset-0"
+              style={{
+                opacity: warmthOpacity,
+                transition: fadeTransition,
+                background:
+                  "radial-gradient(circle at 50% 50%, #fff6e4 0%, rgba(255,227,176,0.92) 22%, rgba(242,197,124,0.55) 45%, rgba(242,197,124,0.12) 68%, transparent 85%)",
+              }}
+            />
+          </div>
         </div>
       </div>
 
       {/* Управление: звук и подсказка выхода — тот же корпус и та же кривая,
-          что у полосы внизу `ContentOverlay`. */}
+          что у полосы внизу `ContentOverlay`. Подпись кнопки не меняется
+          на «включить/выключить» — от этого сама кнопка меняла ширину при
+          каждом нажатии; состояние показывает только иконка. Нажатие
+          гасит непрозрачность, а не масштаб, — размер кнопки теперь
+          зафиксирован при любом взаимодействии. */}
       <div
         className="pointer-events-auto absolute inset-x-0 bottom-0 flex flex-col items-center gap-[0.6rem] px-[1.15rem] pb-[max(1.5rem,env(safe-area-inset-bottom))]"
         style={{
@@ -410,10 +429,10 @@ export default function ConstellationJourney({ active, onDone }: ConstellationJo
             if (e.detail > 0) e.currentTarget.blur();
             toggleMute();
           }}
-          className="glass font-system flex items-center gap-[0.5em] rounded-full py-[0.7rem] pr-[1.25rem] pl-[1.05rem] text-[13px] font-medium text-star/90 transition-transform duration-300 active:scale-[0.97]"
+          className="glass font-system flex items-center gap-[0.5em] rounded-full py-[0.7rem] pr-[1.25rem] pl-[1.05rem] text-[13px] font-medium text-star/90 transition-opacity duration-150 active:opacity-70"
         >
           {muted ? <IconSpeakerOff size={16} className="text-amber/90" /> : <IconSpeaker size={16} className="text-amber/90" />}
-          {muted ? "включить звук" : "выключить звук"}
+          звук
         </button>
         <span
           className="font-system caption text-[12px] font-medium tracking-[0.05em] text-star transition-opacity duration-300"
@@ -428,22 +447,20 @@ export default function ConstellationJourney({ active, onDone }: ConstellationJo
 
 /**
  * Скорость тоннеля: быстро в начале, гасится к моменту прибытия почти
- * до нуля — не «медленнее», а по-настоящему «встали». Гасится к p=0.48,
- * чуть раньше, чем заканчивается рост звезды (p=0.55): торможение должно
- * завершиться первым, звезда — чуть позже него, и только тогда, когда
- * оба процесса действительно кончились, начинает раскрываться видео —
- * без пересечения, где одно как будто уже встало, а другое всё ещё летит.
+ * до нуля — не «медленнее», а по-настоящему «встали», — но доходит до
+ * этого предела ровно к p=1, вместе с ростом звезды, а не раньше него.
+ * Лёгкое движение фона сохраняется вплоть до финального размера звезды —
+ * раньше тоннель успокаивался заметно раньше, и получалось «одно уже
+ * встало, другое всё ещё летит».
  */
 function speedFor(progress: number, mode: Mode) {
-  if (mode === "reverse") return 3.2;
-  const t = mapRange(progress, 0, 0.48);
-  return lerp(2.2, 0.015, easeInOutCubic(t));
+  if (mode === "reverse") return 3.4;
+  return lerp(2.2, 0.015, easeInOutCubic(progress));
 }
-/** Яркость самого тоннеля: чуть гаснет по мере роста звезды, чтобы не спорить с её светом. */
+/** Яркость самого тоннеля: гаснет по мере роста звезды, чтобы не спорить с её светом. */
 function dimFor(progress: number, mode: Mode) {
   if (mode === "reverse") return 1;
-  if (progress > 0.35) return lerp(1, 0.5, mapRange(progress, 0.35, 0.55));
-  return 1;
+  return lerp(1, 0.55, easeInOutCubic(progress));
 }
 
 function drawTunnel(
@@ -462,22 +479,39 @@ function drawTunnel(
   ctx.fillStyle = "#05070f";
   ctx.fillRect(0, 0, w, h);
 
-  // «arrived» — корабль встал. Звёзды не едут дальше по z и не оставляют
-  // хвост: только мерцают каждая в своём ритме. Иначе даже остаточная
-  // скорость 0.015 за много секунд идле-состояния накопится в заметный
-  // снос, и небо будет выглядеть не остановившимся, а просто очень
-  // медленно ползущим — то же ощущение обмана, только растянутое во времени.
-  const stopped = mode === "arrived";
+  // «arrived» и «closing» — тоннель стоит: звёзды не едут дальше по z
+  // и не оставляют хвост, только мерцают каждая в своём ритме. «closing»
+  // намеренно входит сюда же: пока звезда сворачивается, фон остаётся
+  // неподвижным — это ЕЁ собственное закрытие, не полёт тоннелем ещё раз.
+  //
+  // «reverse» — единственная фаза настоящего обратного движения. Раньше
+  // здесь просто ускоряли тот же самый «полёт вперёд» (z продолжала
+  // уменьшаться, только быстрее) — отсюда и жалоба «снова летим прямо
+  // к звезде». Настоящее движение назад — это z, которая РАСТЁТ: звёзды
+  // удаляются к горизонту, сходясь к центру и гаснущие, а не расходящиеся
+  // от него.
+  const stopped = mode === "arrived" || mode === "closing";
+  const reversing = mode === "reverse";
   const speedMul = speedFor(progress, mode);
   const dim = dimFor(progress, mode);
 
   for (const s of starsList) {
     if (!stopped) {
-      s.z -= s.speed * speedMul * (dt / 16);
-      if (s.z <= 0.02) {
-        s.z = 1.15;
-        s.x = (Math.random() - 0.5) * 2;
-        s.y = (Math.random() - 0.5) * 2;
+      const delta = s.speed * speedMul * (dt / 16);
+      if (reversing) {
+        s.z += delta;
+        if (s.z >= 1.2) {
+          s.z = 0.04 + Math.random() * 0.08;
+          s.x = (Math.random() - 0.5) * 2;
+          s.y = (Math.random() - 0.5) * 2;
+        }
+      } else {
+        s.z -= delta;
+        if (s.z <= 0.02) {
+          s.z = 1.15;
+          s.x = (Math.random() - 0.5) * 2;
+          s.y = (Math.random() - 0.5) * 2;
+        }
       }
     }
 
@@ -499,7 +533,9 @@ function drawTunnel(
     const color = s.warm ? "255, 227, 176" : "201, 214, 240";
 
     if (!stopped) {
-      const prevK = 0.55 / (s.z + s.speed * speedMul * 3);
+      const trailDelta = s.speed * speedMul * 3;
+      const prevZ = reversing ? Math.max(0.02, s.z - trailDelta) : s.z + trailDelta;
+      const prevK = 0.55 / prevZ;
       const prevX = cx + s.x * prevK * w * 0.55;
       const prevY = cy + s.y * prevK * h * 0.55;
       ctx.beginPath();
