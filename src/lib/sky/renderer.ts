@@ -447,6 +447,9 @@ export function createSky(canvas: HTMLCanvasElement, initial: SkyOptions): SkyHa
     // Вечная звезда — последней. Она не гаснет не по условию в коде,
     // а потому что рисуется поверх всего, что могло бы её притушить.
     drawEternalStar(ctx, w, h, t, opts.reducedMotion);
+    // Звезда путешествия — рядом же и точно так же: видна всегда, а не
+    // только когда открыт экран неба с кнопками.
+    drawJourneyStar(ctx, w, h, t, opts.reducedMotion);
 
     raf = requestAnimationFrame(frame);
   }
@@ -699,6 +702,43 @@ function drawEternalStar(
   g.addColorStop(0, withAlpha(PALETTE.amberHot, 0.5));
   g.addColorStop(0.12, withAlpha(PALETTE.amber, 0.2));
   g.addColorStop(0.4, withAlpha(PALETTE.amber, 0.05));
+  g.addColorStop(1, withAlpha(PALETTE.amber, 0));
+  ctx.fillStyle = g;
+  ctx.fillRect(x - halo, y - halo, halo * 2, halo * 2);
+
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, TAU);
+  ctx.fillStyle = PALETTE.amberHot;
+  ctx.fill();
+}
+
+/**
+ * Звезда «Созвездия Вечного Смеха» — тот же тёплый язык, что у вечной
+ * звезды (это одно и то же небо, не два разных), но дышит чуть шире
+ * и заметнее: это не забытая лампа, а маяк, до которого можно долететь.
+ * Стоит здесь всегда, до всякого нажатия кнопки, — полёт в
+ * `ConstellationJourney` начинается именно с этой точки (см.
+ * `LAYOUT.journeyStar`, единственный источник её координат), поэтому
+ * видео-звезда не появляется из ниоткуда, а оказывается той самой
+ * точкой света, что уже была видна.
+ */
+function drawJourneyStar(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  t: number,
+  reducedMotion: boolean,
+) {
+  const x = LAYOUT.journeyStar.x * w;
+  const y = LAYOUT.journeyStar.y * h;
+  const pulse = reducedMotion ? 1 : 1 + 0.09 * Math.sin((t / 4.2) * TAU);
+  const r = Math.max(1.7, Math.min(w, h) * 0.0038);
+  const halo = r * 15 * pulse;
+
+  const g = ctx.createRadialGradient(x, y, 0, x, y, halo);
+  g.addColorStop(0, withAlpha(PALETTE.amberHot, 0.55));
+  g.addColorStop(0.12, withAlpha(PALETTE.amber, 0.22));
+  g.addColorStop(0.4, withAlpha(PALETTE.amber, 0.06));
   g.addColorStop(1, withAlpha(PALETTE.amber, 0));
   ctx.fillStyle = g;
   ctx.fillRect(x - halo, y - halo, halo * 2, halo * 2);

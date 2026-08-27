@@ -38,10 +38,10 @@ export default function FollowersWidget({ data, className }: FollowersWidgetProp
       className={className}
     >
       <div className="flex items-baseline gap-[0.35em]">
-        <span className="font-system text-[2.2rem] leading-none font-semibold tabular-nums tracking-[-0.03em] text-star">
+        <span className="font-system text-[2.15rem] leading-none font-semibold tabular-nums tracking-[-0.03em] text-star">
           {spaceThousands(count)}
         </span>
-        <span className="font-system text-[13px] text-star/50">
+        <span className="font-system text-[13.5px] text-star/56">
           {plural(count, "человек", "человека", "человек")}
         </span>
       </div>
@@ -51,8 +51,9 @@ export default function FollowersWidget({ data, className }: FollowersWidgetProp
       {data.growthAmount != null && data.growthPeriod && (
         // truncate — по той же причине, что и у городов в DistanceWidget:
         // growthPeriod правится руками в JSON и не должен уметь перенести
-        // строку, каким бы длинным его однажды ни вписали.
-        <div className="font-system mt-[0.65rem] truncate text-center text-[10.5px] text-amber/85">
+        // строку, каким бы длинным его однажды ни вписали. Размер тот же,
+        // что у строки-детали в остальных виджетах (та же роль).
+        <div className="font-system mt-[0.65rem] truncate text-center text-[12.5px] text-amber/90">
           {data.growthAmount > 0 ? "+" : data.growthAmount < 0 ? "−" : ""}
           {spaceThousands(Math.abs(data.growthAmount))} за {data.growthPeriod}
         </div>

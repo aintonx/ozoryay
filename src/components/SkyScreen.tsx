@@ -52,7 +52,6 @@ export default function SkyScreen({ onSpark, hint, onBack }: SkyScreenProps) {
       </div>
 
       {/*
-        Те же кнопки того же размера, что и раньше.
         На телефоне — одна колонка, на широком — три в ряд
         (четвёртая переносится на следующую строку).
       */}

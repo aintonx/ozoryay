@@ -384,6 +384,7 @@ export default function Night({ settings, letters }: NightProps) {
 
       <ConstellationJourney
         active={journey}
+        days={counter.nights}
         onDone={() => setJourney(false)}
       />
     </>

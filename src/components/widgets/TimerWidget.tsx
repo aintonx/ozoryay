@@ -23,11 +23,16 @@ interface TimerWidgetProps {
  * с соседом по сетке, у которого такого переключения не было.
  *
  * Строка часов:минут:секунд прижата к самому низу общей высоты
- * `min-h-[8.4rem]` — не по центру вместе со всем остальным. У соседнего
+ * `min-h-[8.75rem]` — не по центру вместе со всем остальным. У соседнего
  * `DistanceWidget` строка городов устроена ровно так же и прижата к той
  * же самой высоте: раз оба виджета делят одну высоту и один и тот же
  * способ прижимать нижнюю строку к низу, их детали сами оказываются
- * на одной линии, без подгонки отступов на глаз.
+ * на одной линии, без подгонки отступов на глаз. Высота — 8.75rem, а не
+ * прежние 8.4rem: у колец с числом дней естественная высота и так уже
+ * чуть превышала старый min-h, а у соседа с более коротким содержимым —
+ * нет, и по факту их нижние строки расходились на пару пикселей. Новое
+ * значение выше содержимого обоих виджетов сразу, так что оба всегда
+ * упираются именно в него, а не в разную собственную высоту.
  */
 export default function TimerWidget({ counter, className }: TimerWidgetProps) {
   const { days, hours, minutes, seconds } = counter;
@@ -43,7 +48,7 @@ export default function TimerWidget({ counter, className }: TimerWidgetProps) {
 
   return (
     <Widget icon={<IconClock />} title="БЕЗ ТЕБЯ" className={className}>
-      <div className="flex min-h-[8.4rem] flex-1 flex-col gap-[0.6rem]">
+      <div className="flex min-h-[8.75rem] flex-1 flex-col gap-[0.6rem]">
         <div className="flex flex-1 flex-col items-center justify-center gap-[0.6rem]">
           {/* Кольца */}
           <svg viewBox="-52 -52 104 104" className="h-[4.6rem] w-[4.6rem] shrink-0" aria-hidden="true">
@@ -68,17 +73,22 @@ export default function TimerWidget({ counter, className }: TimerWidgetProps) {
             </g>
           </svg>
 
-          {/* Дни */}
+          {/* Дни — тот же размер, что km у соседа и число у «Ты восхищаешь»:
+              одна и та же роль «главного числа виджета» должна выглядеть
+              одинаково значимо во всех трёх местах, а не по-разному. */}
           <div className="flex items-baseline justify-center gap-[0.32em]">
-            <span className="font-system text-[2rem] leading-none font-semibold tabular-nums tracking-[-0.03em] text-star">
+            <span className="font-system text-[2.15rem] leading-none font-semibold tabular-nums tracking-[-0.03em] text-star">
               {days}
             </span>
-            <span className="font-system text-[13px] text-star/50">{dayWord}</span>
+            <span className="font-system text-[13.5px] text-star/56">{dayWord}</span>
           </div>
         </div>
 
-        {/* Часы:минуты:секунды — на одной линии со строкой городов у соседа. */}
-        <div className="font-mono text-center text-[13px] leading-none font-light tabular-nums text-star/70">
+        {/* Часы:минуты:секунды — на одной линии со строкой городов у соседа,
+            тот же размер и та же непрозрачность, что и там: это одна и та же
+            роль («деталь снизу»), и она должна читаться одинаково в обоих
+            виджетах, а не как две разные подписи разной значимости. */}
+        <div className="font-mono text-center text-[12.5px] leading-none font-light tabular-nums text-star/70">
           {pad(hours)}:{pad(minutes)}:{pad(seconds)}
         </div>
       </div>

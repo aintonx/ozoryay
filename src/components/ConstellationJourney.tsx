@@ -2,10 +2,16 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { IconSpeaker, IconSpeakerOff } from "./ui/Icons";
+import { LAYOUT } from "@/lib/sky/layout";
+import { makeDayStars, STAR_TINTS } from "@/lib/sky/stars";
 
 interface ConstellationJourneyProps {
   /** Запустить (true) / остановить и убрать. */
   active: boolean;
+  /** Сколько дней уже прожито — берём столько же настоящих звёзд неба,
+   *  сколько их сейчас видно на экране неба, для того самого поля,
+   *  куда ныряет полёт. */
+  days: number;
   /** Когда обратный полёт закончился — вернуть управление вызывающему. */
   onDone: () => void;
 }
@@ -29,6 +35,8 @@ const REVERSE_MS = 1300;
 const CONTROLS_DELAY_MS = 1400;
 /** Ровно тот же порог, что в `ContentOverlay` — один и тот же жест на сайте. */
 const SWIPE = 44;
+/** Сколько звёзд держим в поле разом — реальных плюс достроенных до плотности. */
+const STAR_COUNT = 340;
 
 type Mode = "forward" | "arrived" | "closing" | "reverse" | "done";
 
@@ -50,36 +58,91 @@ function easeInOutCubic(t: number) {
   return c < 0.5 ? 4 * c * c * c : 1 - Math.pow(-2 * c + 2, 3) / 2;
 }
 
+/** STAR_TINTS в rgb — предпосчитано один раз, а не на каждый кадр. */
+const TINT_STOPS = STAR_TINTS.map((hex) => {
+  const n = parseInt(hex.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255] as const;
+});
+/**
+ * Оттенок 0..1 → «r, g, b». Та же самая шкала, что красит настоящее небо
+ * (`STAR_TINTS`): от голубой до тёплого белого, но НИКОГДА не амбер —
+ * амбер на этом небе означает ровно одно, письмо или звезду путешествия,
+ * и фоновым звёздам тоннеля не принадлежит.
+ */
+function tintToRgb(tint: number): string {
+  const c = clamp01(tint);
+  const idx = c * (TINT_STOPS.length - 1);
+  const i0 = Math.floor(idx);
+  const i1 = Math.min(TINT_STOPS.length - 1, i0 + 1);
+  const f = idx - i0;
+  const [r0, g0, b0] = TINT_STOPS[i0];
+  const [r1, g1, b1] = TINT_STOPS[i1];
+  return `${Math.round(lerp(r0, r1, f))}, ${Math.round(lerp(g0, g1, f))}, ${Math.round(lerp(b0, b1, f))}`;
+}
+
 interface Star {
   x: number;
   y: number;
   z: number;
   speed: number;
   size: number;
-  /** Небольшая доля звёзд горит тёплым — тем же приёмом, что и в остальном небе:
-   *  холодный свет — фон, тёплый — то немногое, что особенное. */
-  warm: boolean;
+  /** Предпосчитанный «r, g, b» — из той же гаммы, что красит настоящее небо. */
+  color: string;
   /** Свой ритм и своя фаза мерцания — на случай, когда полёт кончился
    *  и звёзды перестают лететь, но не должны застыть совсем мёртво. */
   twinkleSpeed: number;
   twinklePhase: number;
 }
 
-function makeStars(count: number): Star[] {
+/**
+ * Звёздное поле тоннеля — не случайный узор с нуля, а то же самое небо,
+ * что уже видно на экране неба: первые `days` точек берутся из
+ * `makeDayStars` (позиция звезды №N всегда одна и та же, это настоящие
+ * звёзды-дни), и только недостающая до плотности часть достраивается
+ * синтетически по тем же самым правилам гаммы. Полёт должен нырять
+ * в то небо, что уже видел человек, а не подменять его на неизвестное.
+ */
+function seedStars(count: number, days: number): Star[] {
   const list: Star[] = [];
-  for (let i = 0; i < count; i++) {
+  const real = makeDayStars(Math.max(0, days));
+
+  for (const d of real) {
+    if (list.length >= count) break;
+    list.push({
+      // 0..1 → -1..1, тот же перевод, что и у синтетических точек ниже.
+      x: (d.x - 0.5) * 2,
+      y: (d.y - 0.5) * 2,
+      z: Math.random() * 1.2 + 0.05,
+      speed: 0.004 + Math.random() * 0.013,
+      size: 0.5 + d.mag * 2,
+      color: tintToRgb(d.tint),
+      twinkleSpeed: 0.5 + Math.random() * 1.2,
+      twinklePhase: d.phase,
+    });
+  }
+
+  while (list.length < count) {
     list.push({
       x: (Math.random() - 0.5) * 2,
       y: (Math.random() - 0.5) * 2,
       z: Math.random() * 1.2 + 0.05,
       speed: 0.004 + Math.random() * 0.013,
       size: 0.6 + Math.random() * 1.8,
-      warm: Math.random() < 0.16,
+      color: tintToRgb(Math.random()),
       twinkleSpeed: 0.5 + Math.random() * 1.2,
       twinklePhase: Math.random() * Math.PI * 2,
     });
   }
+
   return list;
+}
+
+/** Новая точка при перерождении звезды — та же гамма, что и у остальных. */
+function respawnStar(s: Star, atZ: number) {
+  s.z = atZ;
+  s.x = (Math.random() - 0.5) * 2;
+  s.y = (Math.random() - 0.5) * 2;
+  s.color = tintToRgb(Math.random());
 }
 
 /**
@@ -107,7 +170,7 @@ function makeStars(count: number): Star[] {
  * звёзды не «летят вперёд быстрее», а удаляются к горизонту и гаснут,
  * сходясь к центру, а не расходясь от него.
  */
-export default function ConstellationJourney({ active, onDone }: ConstellationJourneyProps) {
+export default function ConstellationJourney({ active, days, onDone }: ConstellationJourneyProps) {
   const [visible, setVisible] = useState(false);
   const [progress, setProgress] = useState(0);
   const [muted, setMuted] = useState(true);
@@ -159,7 +222,7 @@ export default function ConstellationJourney({ active, onDone }: ConstellationJo
     modeRef.current = "forward";
     progressRef.current = 0;
     setProgress(0);
-    stars.current = makeStars(340);
+    stars.current = seedStars(STAR_COUNT, days);
     startTimeRef.current = performance.now();
     later(() => setShowControls(true), CONTROLS_DELAY_MS);
 
@@ -251,7 +314,7 @@ export default function ConstellationJourney({ active, onDone }: ConstellationJo
       progressRef.current = 0;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active]);
+  }, [active, days]);
 
   const beginExit = useCallback(() => {
     if (modeRef.current !== "arrived") return;
@@ -341,10 +404,14 @@ export default function ConstellationJourney({ active, onDone }: ConstellationJo
     >
       <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" aria-hidden />
 
-      {/* Звезда-цель — видео с первого кадра, просто пока залито тёплым
-          и размыто. Внешнее гало шире и мягче, растёт по тому же самому
-          progress, что и всё остальное. */}
-      <div className="pointer-events-none absolute" style={{ left: "50%", top: "46%" }}>
+      {/* Звезда-цель стоит ровно там же, где она уже видна на настоящем
+          небе (см. drawJourneyStar в движке) — единственный источник
+          координат один, LAYOUT, а не два числа, которые могут разъехаться.
+          Видео с первого кадра, просто пока залито тёплым и размыто. */}
+      <div
+        className="pointer-events-none absolute"
+        style={{ left: `${LAYOUT.journeyStar.x * 100}%`, top: `${LAYOUT.journeyStar.y * 100}%` }}
+      >
         <div
           className="absolute rounded-full"
           style={{
@@ -473,8 +540,12 @@ function drawTunnel(
   mode: Mode,
   now: number,
 ) {
-  const cx = w / 2;
-  const cy = h * 0.46;
+  // Тоннель должен сходиться туда же, где стоит сама цель (LAYOUT.journeyStar),
+  // а не в условный центр экрана: иначе звёзды летят в одну точку, а портал
+  // сидит в другой, и это ровно та рассинхронизация, из-за которой полёт
+  // ощущался подменой неба, а не нырком в него.
+  const cx = LAYOUT.journeyStar.x * w;
+  const cy = LAYOUT.journeyStar.y * h;
 
   ctx.fillStyle = "#05070f";
   ctx.fillRect(0, 0, w, h);
@@ -500,18 +571,10 @@ function drawTunnel(
       const delta = s.speed * speedMul * (dt / 16);
       if (reversing) {
         s.z += delta;
-        if (s.z >= 1.2) {
-          s.z = 0.04 + Math.random() * 0.08;
-          s.x = (Math.random() - 0.5) * 2;
-          s.y = (Math.random() - 0.5) * 2;
-        }
+        if (s.z >= 1.2) respawnStar(s, 0.04 + Math.random() * 0.08);
       } else {
         s.z -= delta;
-        if (s.z <= 0.02) {
-          s.z = 1.15;
-          s.x = (Math.random() - 0.5) * 2;
-          s.y = (Math.random() - 0.5) * 2;
-        }
+        if (s.z <= 0.02) respawnStar(s, 1.15);
       }
     }
 
@@ -530,7 +593,7 @@ function drawTunnel(
     }
     if (alpha < 0.03) continue;
 
-    const color = s.warm ? "255, 227, 176" : "201, 214, 240";
+    const color = s.color;
 
     if (!stopped) {
       const trailDelta = s.speed * speedMul * 3;

@@ -76,7 +76,7 @@ interface DistanceWidgetProps {
  * Названия городов стоят на той же высоте, что и строка часов:минут:секунд
  * у соседнего `TimerWidget` — оба виджета устроены одинаково: верхний
  * блок (кольца/маршрут) растягивается на всё свободное место, а нижняя
- * строка-деталь прижата к самому низу общей высоты `min-h-[8.4rem]`.
+ * строка-деталь прижата к самому низу общей высоты `min-h-[8.75rem]`.
  * Раз высота общая — общая и линия, на которой всё это стоит.
  */
 export default function DistanceWidget({
@@ -87,13 +87,13 @@ export default function DistanceWidget({
 }: DistanceWidgetProps) {
   return (
     <Widget icon={<IconPin />} title="МЕЖДУ НАМИ" className={className}>
-      <div className="flex min-h-[8.4rem] flex-1 flex-col gap-[0.6rem]">
+      <div className="flex min-h-[8.75rem] flex-1 flex-col gap-[0.6rem]">
         <div className="flex flex-1 flex-col items-center justify-center gap-[0.75rem]">
           <div className="flex items-baseline justify-center gap-[0.35em]">
-            <span className="font-system text-[2rem] leading-none font-semibold tabular-nums tracking-[-0.03em] text-star">
+            <span className="font-system text-[2.15rem] leading-none font-semibold tabular-nums tracking-[-0.03em] text-star">
               {spaceThousands(distanceKm)}
             </span>
-            <span className="font-system text-[13px] text-star/50">км</span>
+            <span className="font-system text-[13.5px] text-star/56">км</span>
           </div>
 
           {/* Маршрут: сплошная линия от моего города к твоему, светлеющая
@@ -128,13 +128,16 @@ export default function DistanceWidget({
           </div>
         </div>
 
-        {/* Названия городов — данные, которые правишь в defaults.ts сам:
-            если однажды впишешь город длиннее «Краснодара», строка не должна
-            перенестись и потянуть за собой высоту — тот же механизм,
-            что и в плитках выше, только источник риска другой. */}
-        <div className="font-system flex justify-between gap-[0.5rem] text-[10px] leading-none text-star/40">
+        {/* Названия городов — та же роль, что у строки часов:минут:секунд
+            в соседнем виджете (нижняя строка-деталь), поэтому тот же самый
+            размер и та же непрозрачность, не свои, помельче: 10px здесь
+            читались хуже всего в целом наборе. Данные правишь в defaults.ts
+            сам: если однажды впишешь город длиннее «Краснодара», строка
+            не должна перенестись и потянуть за собой высоту — тот же
+            механизм, что и в плитках выше, только источник риска другой. */}
+        <div className="font-system flex justify-between gap-[0.5rem] text-[12.5px] leading-none text-star/56">
           <span className="min-w-0 truncate">{myCity}</span>
-          <span className="min-w-0 truncate text-amber/70">{herCity}</span>
+          <span className="min-w-0 truncate text-amber/75">{herCity}</span>
         </div>
       </div>
     </Widget>

@@ -30,14 +30,14 @@ interface WidgetProps {
  */
 export function Widget({ icon, title, children, className = "", href }: WidgetProps) {
   const header = (icon || title) && (
-    <div className="mb-[0.75rem] flex items-center gap-[0.45rem]">
+    <div className="mb-[0.75rem] flex items-center gap-[0.5rem]">
       {icon && (
-        <span className="flex h-[1.35rem] w-[1.35rem] shrink-0 items-center justify-center rounded-full bg-amber/14 text-[0.72rem] text-amber">
+        <span className="flex h-[1.5rem] w-[1.5rem] shrink-0 items-center justify-center rounded-full bg-amber/14 text-[0.8rem] text-amber">
           {icon}
         </span>
       )}
       {title && (
-        <span className="font-system text-[10.5px] font-semibold tracking-[0.05em] text-star/48">
+        <span className="font-system text-[11.5px] font-semibold tracking-[0.05em] text-star/54">
           {title}
         </span>
       )}
@@ -125,18 +125,18 @@ export function WidgetButton({
       // сама менять перенос строк, что меняет высоту, что снова меняет
       // ширину — и это заворачивается в бесконечный дребезг. `overflow-hidden`
       // на случай, если однажды подпись всё же станет длиннее отведённого.
-      // 8.3rem — с запасом под бейдж, подпись и двухстрочное пояснение;
-      // раньше было тесно (6.6rem), и вторая строка пояснения местами
-      // подрезалась этим же `overflow-hidden`.
+      // 8.8rem — с запасом под бейдж, подпись и двухстрочное пояснение
+      // уже при более крупном шрифте; раньше было тесно (6.6rem, потом
+      // 8.3rem), и текст местами подрезался этим же `overflow-hidden`.
       className={`glass group flex w-full rounded-[1.55rem] p-[1.05rem] text-left transition-transform duration-300 active:scale-[0.985] disabled:pointer-events-none ${
         tile
-          ? "h-[8.3rem] flex-col items-start gap-[0.75rem] overflow-hidden"
+          ? "h-[8.8rem] flex-col items-start gap-[0.75rem] overflow-hidden"
           : "items-center gap-[0.85rem]"
       } ${className}`}
     >
       <span
         className={`flex shrink-0 items-center justify-center rounded-full bg-amber/12 text-amber/90 transition-opacity duration-300 group-hover:bg-amber/18 group-disabled:opacity-40 ${
-          tile ? "h-[2.3rem] w-[2.3rem] text-[1.15rem]" : "h-[2.1rem] w-[2.1rem] text-[1.05rem]"
+          tile ? "h-[2.4rem] w-[2.4rem] text-[1.2rem]" : "h-[2.15rem] w-[2.15rem] text-[1.08rem]"
         }`}
       >
         {icon}
@@ -145,13 +145,13 @@ export function WidgetButton({
         className={`min-w-0 transition-opacity duration-300 group-disabled:opacity-45 ${tile ? "" : "flex-1"}`}
       >
         <span
-          className={`font-system block leading-tight font-medium text-star/92 ${tile ? "text-[14px]" : "text-[13.5px]"}`}
+          className={`font-system block leading-tight font-semibold text-star/94 ${tile ? "text-[15px]" : "text-[14.5px]"}`}
         >
           {label}
         </span>
         {hint && (
           <span
-            className={`font-system mt-[0.2em] block leading-snug text-star/42 ${tile ? "text-[11.5px]" : "text-[11px]"}`}
+            className={`font-system mt-[0.22em] block leading-snug text-star/54 ${tile ? "text-[12.5px]" : "text-[12px]"}`}
           >
             {hint}
           </span>
