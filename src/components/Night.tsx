@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import ContentOverlay from "./ContentOverlay";
 import HomeScreen from "./HomeScreen";
 import Screens, { type ScreenIndex } from "./Screens";
@@ -9,6 +10,7 @@ import Sky from "./Sky";
 import SparkText from "./SparkText";
 import TitleDawn from "./TitleDawn";
 import ConstellationJourney from "./ConstellationJourney";
+import ZonaLift from "./ZonaLift";
 import type { Settings } from "@/lib/defaults";
 import { speakingLetters, type Letter } from "@/lib/letters";
 import { AUTHOR, MEMORIES } from "@/lib/memories";
@@ -37,9 +39,6 @@ const KISS_MS = 3000;
 const DIALOG_ID_BASE = 1000;
 /** Сколько отговоривших звёзд остаётся гореть, прежде чем самые старые гаснут. */
 const LIT_LIMIT = 30;
-/** Пауза после появления домашнего экрана перед тем, как послание сменится
- *  подписью замка — тот самый «барабан» в `LockWidget`. */
-const REVEAL_DELAY_MS = 7000;
 
 const HINT_TEXT = "нажми ещё раз — загорится новая звезда";
 
@@ -75,6 +74,7 @@ interface Spark {
  * при переходе — уезжает только интерфейс, будто подняли глаза.
  */
 export default function Night({ settings, letters }: NightProps) {
+  const router = useRouter();
   const counter = useSeparationCounter(settings.separationStart, settings.herTimezone);
   const where = useMemo(
     () => ({ lat: settings.herLat, lon: settings.herLon, city: settings.herCity }),
@@ -110,17 +110,14 @@ export default function Night({ settings, letters }: NightProps) {
   const [journey, setJourney] = useState(false);
   const [kissToken, setKissToken] = useState(0);
   const [kissInFlight, setKissInFlight] = useState(false);
-  /** Послание в виджете замка один раз сменяется подписью — и остаётся так. */
-  const [lockRevealed, setLockRevealed] = useState(false);
+  /** Подъём «Зоны»: небо уезжает вверх, затем переход на страницу входа. */
+  const [zonaOpening, setZonaOpening] = useState(false);
 
   const timers = useRef<number[]>([]);
   const sparkTimer = useRef<number | undefined>(undefined);
   const dialogCount = useRef(0);
   const hintSeen = useRef(false);
   const projectorRun = useRef(0);
-  /** Таймер раскрытия запускаем один раз за визит: повторный вход или
-   *  обновление страницы создают новый визит и новый повод его завести. */
-  const revealScheduled = useRef(false);
 
   useEffect(() => {
     const pending = timers.current;
@@ -133,16 +130,6 @@ export default function Night({ settings, letters }: NightProps) {
   const later = useCallback((fn: () => void, ms: number) => {
     timers.current.push(window.setTimeout(fn, ms));
   }, []);
-
-  // Таймер раскрытия заводится один раз: когда вступление кончилось
-  // (intro === 2), домашний экран впервые становится виден, а вместе с ним
-  // и послание в виджете замка. `LockWidget` сам по себе не крутит время —
-  // получает только готовое «уже пора» через `revealed`.
-  useEffect(() => {
-    if (intro !== 2 || revealScheduled.current) return;
-    revealScheduled.current = true;
-    later(() => setLockRevealed(true), REVEAL_DELAY_MS);
-  }, [intro, later]);
 
   // Письма, которым есть что сказать: без пустых слотов и без вечной звезды.
   const speaking = useMemo(() => speakingLetters(letters), [letters]);
@@ -295,6 +282,16 @@ export default function Night({ settings, letters }: NightProps) {
     later(() => setKissInFlight(false), KISS_MS);
   }, [kissInFlight, later]);
 
+  /** Нажали на «Зону» — запускаем подъём неба, потом уходим на страницу входа. */
+  const onOpenZona = useCallback(() => {
+    if (zonaOpening) return;
+    setZonaOpening(true);
+  }, [zonaOpening]);
+
+  const onZonaLiftDone = useCallback(() => {
+    router.push("/zona");
+  }, [router]);
+
   // Всё, что за вечер уже зажглось: отговорившие светятся ровным следом,
   // говорящая прямо сейчас — на полную. Вечную лампу рендерер зажигает сам,
   // из LAYOUT, и она не гаснет ни при каком свете.
@@ -312,28 +309,30 @@ export default function Night({ settings, letters }: NightProps) {
 
   const showing = spark !== null || projectorPlaying;
   // Интерфейс уходит с глаз на всё, ради чего стоит смотреть на небо.
-  const veiled = intro !== 2 || showing || kissInFlight || journey;
+  const veiled = intro !== 2 || showing || kissInFlight || journey || zonaOpening;
 
   return (
     <>
-      <Sky
-        days={counter.nights}
-        bearingDeg={settings.bearingDeg}
-        observer={observer}
-        letters={skyLetters}
-        chains={[]}
-        openId={leaving ? null : (spark?.id ?? null)}
-        hintId={null}
-        obsessionId={null}
-        birthNight={null}
-        projectorImage={projector.image}
-        projectorToken={projector.token}
-        projectorCancel={projector.cancel}
-        onProjectorDone={onProjectorDone}
-        cometToken={kissToken}
-        dawn={intro === 0}
-        reducedMotion={reducedMotion}
-      />
+      <ZonaLift active={zonaOpening} onDone={onZonaLiftDone}>
+        <Sky
+          days={counter.nights}
+          bearingDeg={settings.bearingDeg}
+          observer={observer}
+          letters={skyLetters}
+          chains={[]}
+          openId={leaving ? null : (spark?.id ?? null)}
+          hintId={null}
+          obsessionId={null}
+          birthNight={null}
+          projectorImage={projector.image}
+          projectorToken={projector.token}
+          projectorCancel={projector.cancel}
+          onProjectorDone={onProjectorDone}
+          cometToken={kissToken}
+          dawn={intro === 0}
+          reducedMotion={reducedMotion}
+        />
+      </ZonaLift>
 
       <Screens
         index={screen}
@@ -346,7 +345,7 @@ export default function Night({ settings, letters }: NightProps) {
             onKiss={onKiss}
             onOpenSky={() => setScreen(1)}
             kissInFlight={kissInFlight}
-            lockRevealed={lockRevealed}
+            onOpenZona={onOpenZona}
           />
         }
         sky={

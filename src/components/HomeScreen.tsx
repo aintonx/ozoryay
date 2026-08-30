@@ -11,7 +11,7 @@ import {
 import TimerWidget from "./widgets/TimerWidget";
 import DistanceWidget from "./widgets/DistanceWidget";
 import FollowersWidget from "./widgets/FollowersWidget";
-import LockWidget from "./widgets/LockWidget";
+import ZonaWidget from "./widgets/ZonaWidget";
 import { useFollowers } from "@/lib/useFollowers";
 import { WidgetButton } from "./ui/Widget";
 import { IconChevronUp, IconKiss, IconStars } from "./ui/Icons";
