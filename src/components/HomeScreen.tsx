@@ -32,8 +32,8 @@ interface HomeScreenProps {
   onOpenSky: () => void;
   /** Поцелуй уже в пути — кнопка ждёт. */
   kissInFlight: boolean;
-  /** Спустя нужное время после появления экрана — правда открывается. */
-  lockRevealed: boolean;
+  /** Нажали на «Зону» — взгляд пошёл вверх, к странице входа. */
+  onOpenZona: () => void;
 }
 
 /**
@@ -55,7 +55,7 @@ export default function HomeScreen({
   onKiss,
   onOpenSky,
   kissInFlight,
-  lockRevealed,
+  onOpenZona,
 }: HomeScreenProps) {
   // Секунды тикают, а страница собирается заранее: числа в готовом HTML
   // и в браузере разойдутся. Виджеты рождаются уже на клиенте.
@@ -143,12 +143,9 @@ export default function HomeScreen({
       >
         {/*
           Сетка домашнего экрана телефона: две равные колонки для основных
-          действий, затем полноширинная строка — закрытое продолжение.
-          Текст-послесловие, который раньше стоял здесь же отдельной плиткой,
-          теперь показывается прямо внутри `LockWidget` и барабаном сменяется
-          на подпись замка — смотри `revealed` и таймер в `Night`.
-          Весь блок масштабируется по высоте, но визуальная ширина остаётся
-          той же, что у кнопок на экране неба.
+          действий, затем полноширинная строка — вход в «Зону» (см. `ZonaWidget`
+          и подъём взгляда в `Night`). Весь блок масштабируется по высоте, но
+          визуальная ширина остаётся той же, что у кнопок на экране неба.
         */}
         <div className="grid grid-cols-2 gap-[0.7rem]">
           <TimerWidget counter={counter} />
@@ -178,7 +175,7 @@ export default function HomeScreen({
           />
 
           {followers && <FollowersWidget data={followers} className="col-span-2" />}
-          <LockWidget revealed={lockRevealed} className="col-span-2" />
+          <ZonaWidget onOpen={onOpenZona} className="col-span-2" />
         </div>
 
         {/* Подсказка про свайп. */}

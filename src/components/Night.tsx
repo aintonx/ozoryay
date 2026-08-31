@@ -110,7 +110,7 @@ export default function Night({ settings, letters }: NightProps) {
   const [journey, setJourney] = useState(false);
   const [kissToken, setKissToken] = useState(0);
   const [kissInFlight, setKissInFlight] = useState(false);
-  /** Подъём «Зоны»: небо уезжает вверх, затем переход на страницу входа. */
+  /** Нажали на «Зону»: взгляд поднимается к небу, см. `ZonaLift`. */
   const [zonaOpening, setZonaOpening] = useState(false);
 
   const timers = useRef<number[]>([]);
@@ -282,15 +282,10 @@ export default function Night({ settings, letters }: NightProps) {
     later(() => setKissInFlight(false), KISS_MS);
   }, [kissInFlight, later]);
 
-  /** Нажали на «Зону» — запускаем подъём неба, потом уходим на страницу входа. */
-  const onOpenZona = useCallback(() => {
-    if (zonaOpening) return;
-    setZonaOpening(true);
-  }, [zonaOpening]);
-
-  const onZonaLiftDone = useCallback(() => {
-    router.push("/zona");
-  }, [router]);
+  /** Нажали на «Зону»: запускаем подъём взгляда (см. `ZonaLift`). */
+  const onOpenZona = useCallback(() => setZonaOpening(true), []);
+  /** Взгляд запрокинут до конца — открываем страницу входа. */
+  const onZonaLiftDone = useCallback(() => router.push("/zona"), [router]);
 
   // Всё, что за вечер уже зажглось: отговорившие светятся ровным следом,
   // говорящая прямо сейчас — на полную. Вечную лампу рендерер зажигает сам,

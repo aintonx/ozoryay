@@ -12,7 +12,8 @@ import { useSeparationCounter } from "@/lib/time/useSeparationDays";
 /** Сколько цифр в номере после +7. */
 const PHONE_DIGITS = 10;
 
-/** «9189551673» → «918 955 1673». */
+/** «9189551673» → «918 955 1673»: те же группы, что в переписке про эти
+ *  номера, а не привычная сотовая разбивка по два-два-два-два. */
 function formatPhone(digits: string) {
   const a = digits.slice(0, 3);
   const b = digits.slice(3, 6);
@@ -25,7 +26,8 @@ function formatPhone(digits: string) {
  *
  * Небо здесь — тот же компонент, что и на главном экране, с теми же
  * настройками: после `ZonaLift` взгляд должен продолжать смотреть в то же
- * самое небо, а не увидеть внезапно другую картинку.
+ * самое небо, а не увидеть внезапно другую картинку. Второго рендерера не
+ * заводим — ровно один канвас, тут и там.
  *
  * Пока это витрина без базы: номер только форматируется на глазах, вход
  * никуда не ведёт. Экран честно об этом говорит, а не притворяется, что
@@ -46,6 +48,7 @@ export default function ZonaPage() {
   const [tried, setTried] = useState(false);
 
   const ready = phone.length === PHONE_DIGITS && name.trim().length > 0;
+
   const formatted = useMemo(() => formatPhone(phone), [phone]);
 
   return (

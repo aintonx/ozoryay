@@ -103,7 +103,6 @@ export function IconLock({ className, size }: IconProps) {
   );
 }
 
-/** Луч света: «зажги воспоминание» — проектор светит в небо. */
 /**
  * Зона: свой маленький замкнутый мир со своим светом внутри. Один контур
  * и одна звезда — ничего похожего на решётку или ограду: это не про то,
@@ -118,6 +117,8 @@ export function IconZona({ className, size }: IconProps) {
     </svg>
   );
 }
+
+/** Луч света: «зажги воспоминание» — проектор светит в небо. */
 export function IconBeam({ className, size }: IconProps) {
   return (
     <svg {...base(size)} className={className}>
