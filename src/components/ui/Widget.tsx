@@ -75,9 +75,12 @@ interface WidgetButtonProps {
   /**
    * `row` — широкая карточка, иконка слева от текста.
    * `tile` — маленький квадратный виджет: иконка сверху, подпись внизу.
-   * Ровно два формата домашнего экрана телефона, третьего там нет.
+   * `feature` — крупная карточка с центрированием: бейдж, подпись и
+   * пояснение друг под другом посередине, как раньше стояла запись
+   * в `LockWidget` — для входа, который того стоит и не должен теряться
+   * в общем ряду.
    */
-  layout?: "row" | "tile";
+  layout?: "row" | "tile" | "feature";
   className?: string;
 }
 
@@ -95,7 +98,31 @@ export function WidgetButton({
   layout = "row",
   className = "",
 }: WidgetButtonProps) {
-  const tile = layout === "tile";
+  // Высота, выравнивание и центрирование текста — по формату. У `tile`
+  // высота ЗАФИКСИРОВАНА (не `min-h-`) по той же причине, что и раньше:
+  // `HomeScreen` меряет естественную высоту сетки через ResizeObserver
+  // и подгоняет под неё масштаб, а плавающая высота заворачивается
+  // в бесконечный дребезг при переносе строк. У `feature` высота тоже
+  // фиксирована — 11rem, ровно как у прежнего `LockWidget`, чтобы карточка
+  // входа не потерялась среди соседних плиток размером.
+  const layoutClasses =
+    layout === "tile"
+      ? "h-[8.8rem] flex-col items-start gap-[0.75rem] overflow-hidden text-left"
+      : layout === "feature"
+        ? "h-[11rem] flex-col items-center justify-center gap-[0.55rem] overflow-hidden text-center"
+        : "items-center gap-[0.85rem] text-left";
+
+  const badgeClasses =
+    layout === "tile"
+      ? "h-[2.4rem] w-[2.4rem] text-[1.2rem]"
+      : layout === "feature"
+        ? "h-[2.9rem] w-[2.9rem] text-[1.3rem]"
+        : "h-[2.15rem] w-[2.15rem] text-[1.08rem]";
+
+  const labelClasses = layout === "feature" ? "text-[16px]" : layout === "tile" ? "text-[15px]" : "text-[14.5px]";
+  const hintClasses = layout === "row" ? "text-[12px]" : "text-[12.5px]";
+  const textWrapClasses = layout === "row" ? "flex-1" : "";
+
   return (
     <button
       type="button"
@@ -109,50 +136,21 @@ export function WidgetButton({
       // Прозрачность самой карточки не трогаем ни при каком состоянии:
       // у стекла от неё пропадает размытие и оно возвращается рывком.
       // Гаснет только содержимое.
-      //
-      // У плитки один и тот же порядок в потоке при любой ширине экрана:
-      // бейдж, затем подпись, затем пояснение — сверху вниз, без переключения
-      // на строку по брейкпоинту. Раньше на широком экране плитка становилась
-      // строкой, а на телефоне — с текстом, прижатым к низу карточки через
-      // `justify-between`; из-за этого у двух соседних плиток с текстом разной
-      // длины бейджи и подписи оказывались на разной высоте. Теперь якорь
-      // один — верхний край, — и все плитки растут вниз одинаково.
-      //
-      // Высота плитки — ЗАФИКСИРОВАНА (`h-`, не `min-h-`), и это не косметика:
-      // `HomeScreen` меряет естественную высоту всей сетки через ResizeObserver
-      // и подгоняет под неё масштаб. Если бы высота плитки зависела от того,
-      // как перенеслась строка пояснения, — пересчитанная ширина могла бы
-      // сама менять перенос строк, что меняет высоту, что снова меняет
-      // ширину — и это заворачивается в бесконечный дребезг. `overflow-hidden`
-      // на случай, если однажды подпись всё же станет длиннее отведённого.
-      // 8.8rem — с запасом под бейдж, подпись и двухстрочное пояснение
-      // уже при более крупном шрифте; раньше было тесно (6.6rem, потом
-      // 8.3rem), и текст местами подрезался этим же `overflow-hidden`.
-      className={`glass group flex w-full rounded-[1.55rem] p-[1.05rem] text-left transition-transform duration-300 active:scale-[0.985] disabled:pointer-events-none ${
-        tile
-          ? "h-[8.8rem] flex-col items-start gap-[0.75rem] overflow-hidden"
-          : "items-center gap-[0.85rem]"
-      } ${className}`}
+      className={`glass group flex w-full rounded-[1.55rem] p-[1.05rem] transition-transform duration-300 active:scale-[0.985] disabled:pointer-events-none ${layoutClasses} ${className}`}
     >
       <span
-        className={`flex shrink-0 items-center justify-center rounded-full bg-amber/12 text-amber/90 transition-opacity duration-300 group-hover:bg-amber/18 group-disabled:opacity-40 ${
-          tile ? "h-[2.4rem] w-[2.4rem] text-[1.2rem]" : "h-[2.15rem] w-[2.15rem] text-[1.08rem]"
-        }`}
+        className={`flex shrink-0 items-center justify-center rounded-full bg-amber/12 text-amber/90 transition-opacity duration-300 group-hover:bg-amber/18 group-disabled:opacity-40 ${badgeClasses}`}
       >
         {icon}
       </span>
       <span
-        className={`min-w-0 transition-opacity duration-300 group-disabled:opacity-45 ${tile ? "" : "flex-1"}`}
+        className={`min-w-0 transition-opacity duration-300 group-disabled:opacity-45 ${textWrapClasses}`}
       >
-        <span
-          className={`font-system block leading-tight font-semibold text-star/94 ${tile ? "text-[15px]" : "text-[14.5px]"}`}
-        >
+        <span className={`font-system block leading-tight font-semibold text-star/94 ${labelClasses}`}>
           {label}
         </span>
         {hint && (
-          <span
-            className={`font-system mt-[0.22em] block leading-snug text-star/54 ${tile ? "text-[12.5px]" : "text-[12px]"}`}
-          >
+          <span className={`font-system mt-[0.22em] block leading-snug text-star/54 ${hintClasses}`}>
             {hint}
           </span>
         )}
