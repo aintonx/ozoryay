@@ -9,6 +9,12 @@
   --color-amber: #f2c57c;
   --color-amber-hot: #ffe3b0;
 
+  /* Разовое исключение из «шести значений и ни тоном больше»: чёрная дыра
+     на входе в «Зону» (`BlackHoleReveal`) — единственное место на сайте,
+     где нужен фиолетовый. Больше нигде не используется. */
+  --color-void: #3d1a6b;
+  --color-void-glow: #9b5de5;
+
   /* Роли шрифтов. Переменные подставляет next/font в layout. */
   --font-display: var(--font-prata), Georgia, serif;
   --font-letter: var(--font-spectral), Georgia, serif;

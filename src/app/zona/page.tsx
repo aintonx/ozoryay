@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import Sky from "@/components/Sky";
+import BlackHoleReveal from "@/components/BlackHoleReveal";
 import { IconChevronUp } from "@/components/ui/Icons";
 import { SEED_SETTINGS } from "@/lib/defaults";
 import { useObserver } from "@/lib/useObserver";
@@ -28,6 +29,11 @@ function formatPhone(digits: string) {
  * настройками: после `ZonaLift` взгляд должен продолжать смотреть в то же
  * самое небо, а не увидеть внезапно другую картинку. Второго рендерера не
  * заводим — ровно один канвас, тут и там.
+ *
+ * Карточка входа не просто проявляется — она раскрывается из схлопнувшейся
+ * чёрной дыры, см. `BlackHoleReveal`. Единственное место на сайте с
+ * фиолетовым — там же, в globals.css это явно помечено как разовое
+ * исключение из общей палитры.
  *
  * Пока это витрина без базы: номер только форматируется на глазах, вход
  * никуда не ведёт. Экран честно об этом говорит, а не притворяется, что
@@ -73,80 +79,91 @@ export default function ZonaPage() {
       />
 
       <div className="relative z-10 flex h-full w-full items-center justify-center px-[1.15rem] py-[max(1.5rem,env(safe-area-inset-top))]">
-        <div className="emerge glass w-full max-w-[26rem] rounded-[1.7rem] p-[1.5rem]">
-          <Link
-            href="/"
-            className="font-system caption mb-[1.1rem] flex items-center gap-[0.35em] text-[12px] font-medium tracking-[0.05em] text-star transition-opacity duration-300 hover:opacity-80"
+        <BlackHoleReveal className="w-full max-w-[26rem]">
+          <div
+            className="glass w-full rounded-[1.7rem] p-[1.5rem]"
+            style={{
+              // Едва заметный фиолетовый отсвет по кромке карточки — она
+              // только что вышла из чёрной дыры, а не появилась ниоткуда.
+              // Тот же --color-void-glow, что и в BlackHoleReveal, больше
+              // нигде в интерфейсе не встречается.
+              boxShadow: "0 0 0 1px color-mix(in srgb, var(--color-void-glow) 22%, transparent), 0 1.5rem 3rem -1.2rem color-mix(in srgb, var(--color-void-glow) 35%, transparent)",
+            }}
           >
-            <IconChevronUp size={13} className="-rotate-90" />
-            назад
-          </Link>
-
-          <h1 className="font-display text-[2rem] leading-none text-amber-hot" style={{ textWrap: "balance" }}>
-            Зона
-          </h1>
-
-          <p className="font-letter mt-[0.7rem] text-[15px] leading-[1.6] text-star/85">
-            «Зона» — Зоря и Набоев, сплавленные в одно слово: то, что
-            останется нашим, даже если весь мир вокруг однажды замолчит.
-          </p>
-
-          <div className="mt-[1.6rem] flex flex-col gap-[0.85rem]">
-            <label className="block">
-              <span className="font-system mb-[0.4rem] block text-[11.5px] font-semibold tracking-[0.05em] text-star/54">
-                номер телефона
-              </span>
-              <span className="flex items-center gap-[0.55rem] rounded-[1rem] border border-white/14 bg-night/40 px-[0.9rem] py-[0.75rem]">
-                <span className="font-system text-[14.5px] font-semibold text-star/70">+7</span>
-                <input
-                  type="tel"
-                  inputMode="numeric"
-                  autoComplete="tel-national"
-                  value={formatted}
-                  onChange={(e) => {
-                    const digits = e.target.value.replace(/\D/g, "").slice(0, PHONE_DIGITS);
-                    setPhone(digits);
-                  }}
-                  placeholder="918 955 1673"
-                  className="font-system w-full bg-transparent text-[14.5px] text-star placeholder:text-star/35 focus:outline-none"
-                />
-              </span>
-            </label>
-
-            <label className="block">
-              <span className="font-system mb-[0.4rem] block text-[11.5px] font-semibold tracking-[0.05em] text-star/54">
-                как тебя называть
-              </span>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="имя или ник"
-                maxLength={24}
-                className="font-system w-full rounded-[1rem] border border-white/14 bg-night/40 px-[0.9rem] py-[0.75rem] text-[14.5px] text-star placeholder:text-star/35 focus:outline-none"
-              />
-            </label>
-
-            <button
-              type="button"
-              disabled={!ready}
-              onClick={(e) => {
-                if (e.detail > 0) e.currentTarget.blur();
-                setTried(true);
-              }}
-              className="font-system mt-[0.3rem] rounded-[1rem] bg-amber/90 py-[0.85rem] text-center text-[14.5px] font-semibold text-night-deep transition-transform duration-300 active:scale-[0.985] disabled:opacity-35 disabled:active:scale-100"
+            <Link
+              href="/"
+              className="font-system caption mb-[1.1rem] flex items-center gap-[0.35em] text-[12px] font-medium tracking-[0.05em] text-star transition-opacity duration-300 hover:opacity-80"
             >
-              войти
-            </button>
+              <IconChevronUp size={13} className="-rotate-90" />
+              назад
+            </Link>
 
-            {tried && (
-              <p className="font-system text-center text-[12px] leading-snug text-star/56">
-                совсем скоро — как только подключим базу, здесь и правда
-                можно будет войти
-              </p>
-            )}
+            <h1 className="font-display text-[2rem] leading-none text-amber-hot" style={{ textWrap: "balance" }}>
+              Зона
+            </h1>
+
+            <p className="font-letter mt-[0.7rem] text-[15px] leading-[1.6] text-star/85">
+              «Зона» — Зоря и Набоев, сплавленные в одно слово: то, что
+              останется нашим, даже если весь мир вокруг однажды замолчит.
+            </p>
+
+            <div className="mt-[1.6rem] flex flex-col gap-[0.85rem]">
+              <label className="block">
+                <span className="font-system mb-[0.4rem] block text-[11.5px] font-semibold tracking-[0.05em] text-star/54">
+                  номер телефона
+                </span>
+                <span className="flex items-center gap-[0.55rem] rounded-[1rem] border border-white/14 bg-night/40 px-[0.9rem] py-[0.75rem]">
+                  <span className="font-system text-[14.5px] font-semibold text-star/70">+7</span>
+                  <input
+                    type="tel"
+                    inputMode="numeric"
+                    autoComplete="tel-national"
+                    value={formatted}
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/\D/g, "").slice(0, PHONE_DIGITS);
+                      setPhone(digits);
+                    }}
+                    placeholder="918 955 1673"
+                    className="font-system w-full bg-transparent text-[14.5px] text-star placeholder:text-star/35 focus:outline-none"
+                  />
+                </span>
+              </label>
+
+              <label className="block">
+                <span className="font-system mb-[0.4rem] block text-[11.5px] font-semibold tracking-[0.05em] text-star/54">
+                  как тебя называть
+                </span>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="имя или ник"
+                  maxLength={24}
+                  className="font-system w-full rounded-[1rem] border border-white/14 bg-night/40 px-[0.9rem] py-[0.75rem] text-[14.5px] text-star placeholder:text-star/35 focus:outline-none"
+                />
+              </label>
+
+              <button
+                type="button"
+                disabled={!ready}
+                onClick={(e) => {
+                  if (e.detail > 0) e.currentTarget.blur();
+                  setTried(true);
+                }}
+                className="font-system mt-[0.3rem] rounded-[1rem] bg-amber/90 py-[0.85rem] text-center text-[14.5px] font-semibold text-night-deep transition-transform duration-300 active:scale-[0.985] disabled:opacity-35 disabled:active:scale-100"
+              >
+                войти
+              </button>
+
+              {tried && (
+                <p className="font-system text-center text-[12px] leading-snug text-star/56">
+                  совсем скоро — как только подключим базу, здесь и правда
+                  можно будет войти
+                </p>
+              )}
+            </div>
           </div>
-        </div>
+        </BlackHoleReveal>
       </div>
     </main>
   );
