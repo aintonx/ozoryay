@@ -45,6 +45,11 @@ const ZOOM = 1.4;
  * край. Именно это и происходит, когда запрокидываешь голову: горизонт
  * пропадает из виду, а небо остаётся собой, просто другая его часть
  * заполняет собой весь взгляд.
+ *
+ * Симметрично работает и в обратную сторону: когда `active` становится
+ * `false` (в том числе при возврате со страницы `/zona` — см. `Night`),
+ * тот же переход разворачивается назад, тем же путём и с той же
+ * длительностью. Отдельной анимации возврата поэтому не заводим.
  */
 export default function ZonaLift({ active, children, onDone }: ZonaLiftProps) {
   const fired = useRef(false);
@@ -67,7 +72,7 @@ export default function ZonaLift({ active, children, onDone }: ZonaLiftProps) {
         style={{
           transform: active ? `scale(${ZOOM})` : "scale(1)",
           transformOrigin: "50% 0%",
-          transition: active ? `transform ${LIFT_MS}ms var(--ease-lift)` : "none",
+          transition: `transform ${LIFT_MS}ms var(--ease-lift)`,
           willChange: "transform",
         }}
       >
@@ -75,14 +80,15 @@ export default function ZonaLift({ active, children, onDone }: ZonaLiftProps) {
       </div>
 
       {/* Тьма по краям: смыкается ровно к моменту, когда взгляд поднят
-          до конца, и прячет под собой переход на следующую страницу. */}
+          до конца, и прячет под собой переход на следующую страницу — а при
+          возврате точно так же расходится обратно. */}
       <div
         aria-hidden
         className="pointer-events-none fixed inset-0 z-40"
         style={{
           background: "radial-gradient(circle at 50% 50%, transparent 0%, var(--color-night-deep) 85%)",
           opacity: active ? 1 : 0,
-          transition: active ? `opacity ${LIFT_MS}ms var(--ease-lift)` : "none",
+          transition: `opacity ${LIFT_MS}ms var(--ease-lift)`,
         }}
       />
     </div>

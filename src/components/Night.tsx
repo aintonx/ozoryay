@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import ContentOverlay from "./ContentOverlay";
 import HomeScreen from "./HomeScreen";
@@ -41,6 +41,13 @@ const DIALOG_ID_BASE = 1000;
 const LIT_LIMIT = 30;
 
 const HINT_TEXT = "нажми ещё раз — загорится новая звезда";
+
+/** Ключ в sessionStorage: страница `/zona` ставит его перед уходом свайпом
+ *  вниз, чтобы здесь понять — это не обычный заход, а возврат, и вступление
+ *  нужно не проигрывать, а сразу открыться уже поднятым взглядом и тут же
+ *  начать опускать его обратно. См. `useLayoutEffect` ниже и `usePullToClose`
+ *  на странице `/zona`. */
+const ZONA_RETURN_KEY = "zonaReturning";
 
 interface NightProps {
   settings: Settings;
@@ -93,6 +100,10 @@ export default function Night({ settings, letters }: NightProps) {
    * горящий свет и спорят с ним за середину экрана.
    */
   const [intro, setIntro] = useState<0 | 1 | 2>(0);
+  /** Возврат со страницы `/zona` — тогда вступление не идёт вообще, экран
+   *  открывается сразу в уже поднятом состоянии (см. `useLayoutEffect`
+   *  ниже) и не должен получить своё обычное «рассвет». */
+  const [skipDawn, setSkipDawn] = useState(false);
   const [spark, setSpark] = useState<Spark | null>(null);
   /** Горящая звезда уходит: слова тают, свеча гаснет, следующая ждёт. */
   const [leaving, setLeaving] = useState(false);
@@ -125,6 +136,41 @@ export default function Night({ settings, letters }: NightProps) {
       pending.forEach((t) => window.clearTimeout(t));
       window.clearTimeout(sparkTimer.current);
     };
+  }, []);
+
+  // Возврат со страницы «Зоны»: до первой отрисовки экрана (пока браузер
+  // ещё не нарисовал кадр) проверяем метку и, если она есть, открываемся
+  // сразу в уже поднятом состоянии — минуя рассвет и с уже спрятанными
+  // виджетами, — а на следующем кадре опускаем взгляд обратно. Именно
+  // `useLayoutEffect`, а не `useEffect`: он успевает до показа кадра
+  // пользователю, поэтому обычное вступление не мелькает даже на миг.
+  useLayoutEffect(() => {
+    let returning = false;
+    try {
+      returning = window.sessionStorage.getItem(ZONA_RETURN_KEY) === "1";
+      if (returning) window.sessionStorage.removeItem(ZONA_RETURN_KEY);
+    } catch {
+      // Приватный режим или отключённое хранилище — просто открываемся
+      // как обычно, без разворота.
+      returning = false;
+    }
+    if (!returning) return;
+
+    // Три setState подряд внутри эффекта — обычно повод насторожиться, но
+    // здесь это ровно тот случай, для которого useLayoutEffect и существует:
+    // значение приходит из sessionStorage, а его нет ни при статической
+    // сборке (там окна браузера вообще нет), ни в состоянии по умолчанию,
+    // которое ушло в HTML при экспорте, — значит, синхронизировать его
+    // можно только уже на клиенте, после монтирования. Ленивый инициализатор
+    // useState здесь не подходит: он читал бы sessionStorage уже на первом
+    // клиентском рендере, который обязан совпасть с тем, что зашито
+    // в статический HTML, иначе — расхождение при гидратации.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSkipDawn(true);
+    setIntro(2);
+    setZonaOpening(true);
+    const raf = window.requestAnimationFrame(() => setZonaOpening(false));
+    return () => window.cancelAnimationFrame(raf);
   }, []);
 
   const later = useCallback((fn: () => void, ms: number) => {
@@ -369,12 +415,17 @@ export default function Night({ settings, letters }: NightProps) {
         nextLabel="дальше"
       />
 
-      {/* Снимает себя сам: свет уже пошёл на убыль, а строка ещё уезжает. */}
-      <TitleDawn
-        bearingDeg={settings.bearingDeg}
-        onLeave={onIntroLeave}
-        onDone={onIntroDone}
-      />
+      {/* Снимает себя сам: свет уже пошёл на убыль, а строка ещё уезжает.
+          При возврате со страницы «Зоны» вообще не монтируется — своим
+          обычным `onLeave`/`onDone` она откатила бы уже выставленный
+          в useLayoutEffect выше intro=2 обратно на 1. */}
+      {!skipDawn && (
+        <TitleDawn
+          bearingDeg={settings.bearingDeg}
+          onLeave={onIntroLeave}
+          onDone={onIntroDone}
+        />
+      )}
 
       <ConstellationJourney
         active={journey}
