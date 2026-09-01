@@ -1,6 +1,84 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode, type Ref } from "react";
+import { useReducedMotion } from "@/lib/useReducedMotion";
+
+/** Насколько сильно карточка может повернуться вслед за курсором. */
+const TILT_MAX_DEG = 5;
+
+/** То же самое, но для карточек с `depth` — им положено чуть больше веса. */
+const TILT_MAX_DEG_DEEP = 6.5;
+
+function clamp01(n: number) {
+  return Math.min(1, Math.max(0, n));
+}
+
+/**
+ * Наклон стекла вслед за курсору — и блик, который скользит следом за ним.
+ *
+ * Всё состояние живёт в CSS-переменных прямо на узле (`--tilt-rx`,
+ * `--tilt-ry`, `--mx`, `--my`, `--glow`; формулы, которые их используют, —
+ * в `.tilt` в globals.css), а не в React: движению мыши не пристало вызывать
+ * полсотни перерисовок в секунду ради эффекта, который к состоянию
+ * приложения не имеет никакого отношения.
+ *
+ * Наклон появляется только там, где есть настоящая мышь (`hover: hover`
+ * и `pointer: fine`) и где движение не отключено системной настройкой:
+ * на тач-экране наклон нечем ловить, а лишнее вычисление на каждый кадр
+ * прикосновения того не стоит. Переменные в этом случае просто никогда
+ * не отходят от нуля — карточка остаётся плоской, но живой во всём
+ * остальном (свет, зерно, тени уже заложены в саму `.glass`).
+ */
+function useTilt(active: boolean, intensity = 1) {
+  const ref = useRef<HTMLElement | null>(null);
+  const reducedMotion = useReducedMotion();
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!active || reducedMotion || !el) return;
+    if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) return;
+
+    let frame = 0;
+
+    const onMove = (e: PointerEvent) => {
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        const rect = el.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) return;
+        const px = clamp01((e.clientX - rect.left) / rect.width);
+        const py = clamp01((e.clientY - rect.top) / rect.height);
+        const rx = (0.5 - py) * TILT_MAX_DEG * intensity;
+        const ry = (px - 0.5) * TILT_MAX_DEG * intensity;
+        el.style.setProperty("--tilt-rx", `${rx.toFixed(2)}deg`);
+        el.style.setProperty("--tilt-ry", `${ry.toFixed(2)}deg`);
+        el.style.setProperty("--mx", `${(px * 100).toFixed(1)}%`);
+        el.style.setProperty("--my", `${(py * 100).toFixed(1)}%`);
+        el.style.setProperty("--glow", "1");
+      });
+    };
+
+    const onLeave = () => {
+      if (frame) {
+        cancelAnimationFrame(frame);
+        frame = 0;
+      }
+      el.style.setProperty("--tilt-rx", "0deg");
+      el.style.setProperty("--tilt-ry", "0deg");
+      el.style.setProperty("--glow", "0");
+    };
+
+    el.addEventListener("pointermove", onMove);
+    el.addEventListener("pointerleave", onLeave);
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+      el.removeEventListener("pointermove", onMove);
+      el.removeEventListener("pointerleave", onLeave);
+    };
+  }, [active, reducedMotion, intensity]);
+
+  return ref;
+}
 
 interface WidgetProps {
   /** Иконка в шапке — как у системных виджетов. */
@@ -14,6 +92,13 @@ interface WidgetProps {
    * Нужен, когда виджет ведёт куда-то за пределы сайта, например в профиль.
    */
   href?: string;
+  /**
+   * Карточка, которая значит больше остальных: чуть глубже тень, чуть
+   * заметнее наклон. Не новый визуальный язык — тот же самый, на полтона
+   * громче. Использовать точечно: если весомым станет всё, весомым
+   * не окажется ничто.
+   */
+  depth?: boolean;
 }
 
 /**
@@ -21,14 +106,18 @@ interface WidgetProps {
  * телефона: сверху мелкая шапка с иконкой, ниже — содержимое.
  *
  * Стекло берётся из общего класса `.glass`, поэтому все карточки на сайте
- * выглядят одним набором, а не собранием разных панелей.
+ * выглядят одним набором, а не собранием разных панелей. Поверх него —
+ * `.tilt`: общая для всех виджетов формула наклона и блика (см. `useTilt`
+ * выше и `.tilt` в globals.css).
  *
  * Иконка в шапке стоит в собственном кружке-бейдже, а не просто рядом
  * с текстом: так у всех карточек один и тот же якорь — верхний левый угол
  * бейджа, — и заголовки выравниваются между собой сами, каким бы ни было
  * содержимое ниже.
  */
-export function Widget({ icon, title, children, className = "", href }: WidgetProps) {
+export function Widget({ icon, title, children, className = "", href, depth = false }: WidgetProps) {
+  const tiltRef = useTilt(true, depth ? TILT_MAX_DEG_DEEP / TILT_MAX_DEG : 1);
+
   const header = (icon || title) && (
     <div className="mb-[0.75rem] flex items-center gap-[0.5rem]">
       {icon && (
@@ -44,13 +133,21 @@ export function Widget({ icon, title, children, className = "", href }: WidgetPr
     </div>
   );
 
-  const classes = `glass flex flex-col rounded-[1.55rem] p-[1.05rem] ${
-    href ? "transition-transform duration-300 active:scale-[0.985]" : ""
-  } ${className}`;
+  // Наклон и нажатие делят одно и то же свойство `transform` — формула
+  // обоих целиком живёт в `.tilt` (globals.css), поэтому здесь Tailwind-у
+  // не остаётся управлять `transform` самому: `active:scale` тут больше
+  // не нужен, о нажатии заботится `.tilt:active`.
+  const classes = `glass tilt ${depth ? "glass-deep" : ""} flex flex-col rounded-[1.55rem] p-[1.05rem] ${className}`;
 
   if (href) {
     return (
-      <a href={href} target="_blank" rel="noopener noreferrer" className={classes}>
+      <a
+        ref={tiltRef as Ref<HTMLAnchorElement>}
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={classes}
+      >
         {header}
         {children}
       </a>
@@ -58,7 +155,7 @@ export function Widget({ icon, title, children, className = "", href }: WidgetPr
   }
 
   return (
-    <div className={classes}>
+    <div ref={tiltRef as Ref<HTMLDivElement>} className={classes}>
       {header}
       {children}
     </div>
@@ -88,6 +185,11 @@ interface WidgetButtonProps {
  * Виджет-кнопка. Тот же корпус, но нажимается: чуть подаётся под пальцем
  * и подсвечивается. Зона нажатия — вся карточка, поэтому в неё легко
  * попасть большим пальцем на ходу.
+ *
+ * `feature` — самый весомый формат (сейчас это вход в «Зону»), поэтому
+ * ему достаётся `glass-deep` и чуть более заметный наклон, без отдельного
+ * пропа: это следствие уже существующего смысла `layout`, а не новая ручка
+ * управления.
  */
 export function WidgetButton({
   icon,
@@ -98,6 +200,8 @@ export function WidgetButton({
   layout = "row",
   className = "",
 }: WidgetButtonProps) {
+  const tiltRef = useTilt(!disabled, layout === "feature" ? TILT_MAX_DEG_DEEP / TILT_MAX_DEG : 1);
+
   // Высота, выравнивание и центрирование текста — по формату. У `tile`
   // высота ЗАФИКСИРОВАНА (не `min-h-`) по той же причине, что и раньше:
   // `HomeScreen` меряет естественную высоту сетки через ResizeObserver
@@ -125,6 +229,7 @@ export function WidgetButton({
 
   return (
     <button
+      ref={tiltRef as Ref<HTMLButtonElement>}
       type="button"
       onClick={(e) => {
         // После касания снимаем фокус: иначе на карточке остаётся кольцо,
@@ -135,8 +240,10 @@ export function WidgetButton({
       disabled={disabled}
       // Прозрачность самой карточки не трогаем ни при каком состоянии:
       // у стекла от неё пропадает размытие и оно возвращается рывком.
-      // Гаснет только содержимое.
-      className={`glass group flex w-full rounded-[1.55rem] p-[1.05rem] transition-transform duration-300 active:scale-[0.985] disabled:pointer-events-none ${layoutClasses} ${className}`}
+      // Гаснет только содержимое. Наклон и нажатие («подача под пальцем»)
+      // тоже здесь не прописаны Tailwind-ом — обе живут в `.tilt`
+      // (globals.css) через одну и ту же формулу transform.
+      className={`glass tilt ${layout === "feature" ? "glass-deep" : ""} group flex w-full rounded-[1.55rem] p-[1.05rem] disabled:pointer-events-none ${layoutClasses} ${className}`}
     >
       <span
         className={`flex shrink-0 items-center justify-center rounded-full bg-amber/12 text-amber/90 transition-opacity duration-300 group-hover:bg-amber/18 group-disabled:opacity-40 ${badgeClasses}`}

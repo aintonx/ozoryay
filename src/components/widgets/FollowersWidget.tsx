@@ -69,6 +69,10 @@ export default function FollowersWidget({ data, className }: FollowersWidgetProp
  * гаснет к началу и разгорается к концу, а на самом кончике — светящаяся
  * голова. Смысл тот же — растёт или стоит, — но прочитывается как след,
  * а не как биржевой график.
+ *
+ * Лёгкое `drop-shadow` на всём svg — тот же самый, тихий янтарный свет,
+ * что и на кольцах `TimerWidget`, и на маршруте `DistanceWidget`: три
+ * разные линии на сайте светятся одинаково, а не каждая по-своему.
  */
 function Comet({ points }: { points: number[] }) {
   const H = 34;
@@ -96,6 +100,7 @@ function Comet({ points }: { points: number[] }) {
         viewBox={`0 0 ${W} ${H}`}
         className="absolute inset-0 h-full w-full"
         preserveAspectRatio="none"
+        style={{ filter: "drop-shadow(0 0 5px rgba(255, 227, 176, 0.18))" }}
         aria-hidden="true"
       >
         <defs>

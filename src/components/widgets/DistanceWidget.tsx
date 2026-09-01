@@ -16,6 +16,22 @@ import { spaceThousands } from "@/lib/text/plural";
 const ROUTE_Y = (36 / 46) * 100;
 
 /**
+ * Шестнадцать румбов компаса на русском — для перевода азимута маршрута
+ * в слово, которое читается сразу, без пересчёта из градусов в голове.
+ */
+const COMPASS_POINTS = [
+  "С", "ССВ", "СВ", "ВСВ", "В", "ВЮВ", "ЮВ", "ЮЮВ",
+  "Ю", "ЮЮЗ", "ЮЗ", "ЗЮЗ", "З", "ЗСЗ", "СЗ", "ССЗ",
+];
+
+/** Азимут (градусы от севера по часовой) → ближайший из шестнадцати румбов. */
+function compassLabel(deg: number): string {
+  const normalized = ((deg % 360) + 360) % 360;
+  const index = Math.round(normalized / 22.5) % COMPASS_POINTS.length;
+  return COMPASS_POINTS[index];
+}
+
+/**
  * Метка «она» — конец маршрута.
  *
  * У капли (IconMarker) сама точка — не центр фигуры, а её носик внизу,
@@ -62,6 +78,8 @@ interface DistanceWidgetProps {
   distanceKm: number;
   myCity: string;
   herCity: string;
+  /** Начальный азимут большого круга от меня к ней, в градусах от севера. */
+  bearingDeg: number;
   className?: string;
 }
 
@@ -71,23 +89,31 @@ interface DistanceWidgetProps {
  * Не голая цифра, а маршрут: точка отправления и точка назначения, между
  * ними — сплошной путь, как прочерченный маршрут на карте, а не голая
  * дуга. Так расстояние читается как путь, который однажды будет пройден,
- * а не как приговор.
+ * а не как приговор. Сама линия ещё и тихо светится — тот же самый приём,
+ * что и у колец в соседнем `TimerWidget`, — стекло не просто содержит
+ * маршрут, а как будто отсвечивает им.
  *
  * Названия городов стоят на той же высоте, что и строка часов:минут:секунд
  * у соседнего `TimerWidget` — оба виджета устроены одинаково: верхний
- * блок (кольца/маршрут) растягивается на всё свободное место, а нижняя
- * строка-деталь прижата к самому низу общей высоты `min-h-[8.75rem]`.
+ * блок (кольца/маршрут) растягивается на всё свободное место, а нижний
+ * блок-деталь прижат к самому низу общей высоты `min-h-[9.9rem]`.
  * Раз высота общая — общая и линия, на которой всё это стоит.
+ *
+ * Под городами — курс: тот же азимут, которым однажды прочертили саму
+ * дугу маршрута (`bearingDeg` в defaults.ts), только словом, а не градусом.
+ * Мелочь, которая превращает расстояние из отвлечённого числа в реальное
+ * направление — «туда, а не куда угодно».
  */
 export default function DistanceWidget({
   distanceKm,
   myCity,
   herCity,
+  bearingDeg,
   className,
 }: DistanceWidgetProps) {
   return (
     <Widget icon={<IconPin />} title="МЕЖДУ НАМИ" className={className}>
-      <div className="flex min-h-[8.75rem] flex-1 flex-col gap-[0.6rem]">
+      <div className="flex min-h-[9.9rem] flex-1 flex-col gap-[0.6rem]">
         <div className="flex flex-1 flex-col items-center justify-center gap-[0.75rem]">
           <div className="flex items-baseline justify-center gap-[0.35em]">
             <span className="font-system text-[2.15rem] leading-none font-semibold tabular-nums tracking-[-0.03em] text-star">
@@ -106,6 +132,7 @@ export default function DistanceWidget({
               viewBox="0 0 200 46"
               className="absolute inset-0 h-full w-full"
               preserveAspectRatio="none"
+              style={{ filter: "drop-shadow(0 0 5px rgba(255, 227, 176, 0.16))" }}
               aria-hidden="true"
             >
               <defs>
@@ -138,6 +165,13 @@ export default function DistanceWidget({
         <div className="font-system flex justify-between gap-[0.5rem] text-[12.5px] leading-none text-star/56">
           <span className="min-w-0 truncate">{myCity}</span>
           <span className="min-w-0 truncate text-amber/75">{herCity}</span>
+        </div>
+
+        {/* Курс — вторая, более тихая строка, ровно там же, где у соседа
+            стоит дата начала: тот же тихий «довесок смысла» под главной
+            деталью виджета. */}
+        <div className="font-system mt-[0.05rem] text-center text-[10.5px] tracking-[0.06em] text-star/40">
+          курс {compassLabel(bearingDeg)}
         </div>
       </div>
     </Widget>

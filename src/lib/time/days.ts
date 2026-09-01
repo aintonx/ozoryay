@@ -56,6 +56,25 @@ export function daysBetweenCivil(
 }
 
 /**
+ * Короткая дата на русском: «30 июня». Год добавляется, только если дата
+ * пришлась не на этот же (в её поясе) год, — иначе он не несёт новой
+ * информации и только удлиняет строку, которой и так тесно под кольцами.
+ *
+ * Пояс передаётся тот же, что и в счётчике разлуки: дата начала не должна
+ * съехать на сутки против собственных же дней, которые считаются в нём же.
+ */
+export function formatShortRuDate(separationStartISO: string, tz: string, now: Date = new Date()): string {
+  const date = new Date(separationStartISO);
+  const sameYear = civilDateInTz(date, tz)[0] === civilDateInTz(now, tz)[0];
+  return new Intl.DateTimeFormat("ru", {
+    day: "numeric",
+    month: "long",
+    year: sameYear ? undefined : "numeric",
+    timeZone: tz,
+  }).format(date);
+}
+
+/**
  * Сколько ночей длится разлука. Ровно столько же звёзд на небе.
  *
  * `floor` — сохранённый максимум: если её часовой пояс когда-нибудь сменится

@@ -148,11 +148,16 @@ export default function HomeScreen({
           визуальная ширина остаётся той же, что у кнопок на экране неба.
         */}
         <div className="grid grid-cols-2 gap-[0.7rem]">
-          <TimerWidget counter={counter} />
+          <TimerWidget
+            counter={counter}
+            separationStartISO={settings.separationStart}
+            tz={settings.herTimezone}
+          />
           <DistanceWidget
             distanceKm={settings.distanceKm}
             myCity={settings.myCity}
             herCity={settings.herCity}
+            bearingDeg={settings.bearingDeg}
           />
           <WidgetButton
             layout="tile"
