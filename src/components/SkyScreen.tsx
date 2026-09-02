@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { WidgetButton } from "./ui/Widget";
 import {
   IconBeam,
@@ -17,6 +18,23 @@ interface SkyScreenProps {
   hint: string | null;
   /** Вернуться к виджетам. */
   onBack: () => void;
+}
+
+/**
+ * Бейдж-кружок для значков этого экрана — как раньше был встроен
+ * в саму `WidgetButton`. Сюда не дошла сегодняшняя ревизия домашнего
+ * экрана (там значки убраны целиком в пользу нефигуративных акцентов) —
+ * у этих четырёх кнопок другая природа: каждая уже названа словом
+ * («Созвездие», «Зажги воспоминание»), которое само доносит суть, а
+ * значок здесь просто узнаваемый якорь, а не подпись-костыль к пустой
+ * карточке.
+ */
+function LegacyBadge({ children }: { children: ReactNode }) {
+  return (
+    <span className="flex h-full w-full items-center justify-center rounded-full bg-amber/12 text-[1.08rem] text-amber/90">
+      {children}
+    </span>
+  );
 }
 
 /**
@@ -57,25 +75,41 @@ export default function SkyScreen({ onSpark, hint, onBack }: SkyScreenProps) {
       */}
       <div className="pointer-events-auto mx-auto grid w-full max-w-[26rem] grid-cols-1 gap-[0.7rem] sm:max-w-[49rem] sm:grid-cols-3">
         <WidgetButton
-          icon={<IconSparkleStar />}
+          accent={
+            <LegacyBadge>
+              <IconSparkleStar />
+            </LegacyBadge>
+          }
           label="Созвездие Вечного Смеха"
           hint="отправиться в путешествие"
           onClick={() => onSpark("laugh")}
         />
         <WidgetButton
-          icon={<IconBeam />}
+          accent={
+            <LegacyBadge>
+              <IconBeam />
+            </LegacyBadge>
+          }
           label="Зажги воспоминание"
           hint="луч из домика на холме"
           onClick={() => onSpark("memory")}
         />
         <WidgetButton
-          icon={<IconDialog />}
+          accent={
+            <LegacyBadge>
+              <IconDialog />
+            </LegacyBadge>
+          }
           label="Зажги диалог"
           hint="то, что мы правда сказали"
           onClick={() => onSpark("dialog")}
         />
         <WidgetButton
-          icon={<IconLetter />}
+          accent={
+            <LegacyBadge>
+              <IconLetter />
+            </LegacyBadge>
+          }
           label="Зажги послание"
           hint="моё письмо тебе"
           onClick={() => onSpark("letter")}

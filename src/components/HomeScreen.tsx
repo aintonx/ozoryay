@@ -14,7 +14,7 @@ import FollowersWidget from "./widgets/FollowersWidget";
 import ZonaWidget from "./widgets/ZonaWidget";
 import { useFollowers } from "@/lib/useFollowers";
 import { WidgetButton } from "./ui/Widget";
-import { IconChevronUp, IconKiss, IconStars } from "./ui/Icons";
+import { IconChevronUp } from "./ui/Icons";
 import type { Settings } from "@/lib/defaults";
 import type { SeparationCounter } from "@/lib/time/useSeparationDays";
 
@@ -24,6 +24,54 @@ const subscribeNever = () => () => {};
 /** Ниже этого не ужимаем: лучше подрезать поля, чем сделать текст нечитаемым. */
 const MIN_SCALE = 0.76;
 const WIDE_QUERY = "(min-width: 640px)";
+
+/**
+ * Акцент «Поцелуя» — не значок, а тёплая светящаяся точка. В полёте вокруг
+ * нее расходится кольцо (то же `gentle-pulse`, что и у метки «я» на карте
+ * расстояния, только быстрее — 1.1с вместо 2.6с): ощущение, что что-то
+ * прямо сейчас происходит, без картинки самого поцелуя.
+ */
+function KissAccent({ inFlight }: { inFlight: boolean }) {
+  return (
+    <span className="relative flex h-full w-full items-center justify-center">
+      <span
+        aria-hidden="true"
+        className="h-[0.85rem] w-[0.85rem] rounded-full bg-amber-hot/85"
+        style={{ boxShadow: "0 0 20px 6px rgba(255, 227, 176, 0.45)" }}
+      />
+      {inFlight && (
+        <span
+          aria-hidden="true"
+          className="absolute h-[0.85rem] w-[0.85rem] animate-[gentle-pulse_1.1s_ease-out_infinite] rounded-full bg-amber-hot/55"
+        />
+      )}
+    </span>
+  );
+}
+
+/**
+ * Акцент «Неба» — три тихо мерцающие точки-звезды, а не значок звезды.
+ * Разные размеры, задержки и длительности, чтобы россыпь не читалась
+ * как один и тот же повторяющийся элемент трижды.
+ */
+function SkyAccent() {
+  return (
+    <span className="relative flex h-full w-full items-center justify-center" aria-hidden="true">
+      <span
+        className="absolute h-[0.5rem] w-[0.5rem] rounded-full bg-star/70"
+        style={{ left: "26%", top: "30%", animation: "twinkle-soft 3.2s ease-in-out infinite", animationDelay: "-0.4s" }}
+      />
+      <span
+        className="absolute h-[0.34rem] w-[0.34rem] rounded-full bg-star/55"
+        style={{ left: "64%", top: "22%", animation: "twinkle-soft 2.6s ease-in-out infinite", animationDelay: "-1.5s" }}
+      />
+      <span
+        className="absolute h-[0.4rem] w-[0.4rem] rounded-full bg-amber-hot/70"
+        style={{ left: "50%", top: "60%", animation: "twinkle-soft 3.6s ease-in-out infinite", animationDelay: "-2.1s" }}
+      />
+    </span>
+  );
+}
 
 interface HomeScreenProps {
   counter: SeparationCounter;
@@ -161,7 +209,7 @@ export default function HomeScreen({
           />
           <WidgetButton
             layout="tile"
-            icon={<IconKiss />}
+            accent={<KissAccent inFlight={kissInFlight} />}
             label="Отправить поцелуй"
             hint={kissInFlight ? "летит ко мне…" : "он улетит ко мне"}
             onClick={onKiss}
@@ -169,7 +217,7 @@ export default function HomeScreen({
           />
           <WidgetButton
             layout="tile"
-            icon={<IconStars />}
+            accent={<SkyAccent />}
             label="Взгляни на небо"
             // Неразрывный пробел держит «свои секреты» одним куском, чтобы
             // перенос (если он вообще случится на узкой колонке) прошёл
@@ -179,7 +227,9 @@ export default function HomeScreen({
             onClick={onOpenSky}
           />
 
-          {followers && <FollowersWidget data={followers} className="col-span-2" />}
+          {followers && (
+            <FollowersWidget data={followers} tz={settings.herTimezone} className="col-span-2" />
+          )}
           <ZonaWidget onOpen={onOpenZona} className="col-span-2" />
         </div>
 

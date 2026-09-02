@@ -23,6 +23,17 @@ export interface Followers {
    */
   growthAmount: number | null;
   growthPeriod: string | null;
+  /**
+   * Разовая веха — «стала тысячницей» и момент, когда это случилось.
+   *
+   * Как и прирост выше, вручную: история хранит точку в лучшем случае
+   * раз в пару дней, а точное время конкретного момента в ней просто
+   * не с чем взять. `milestoneLabel` — уже готовое склонённое слово
+   * («тысячницей», «двухтысячницей»...), а не число, из которого его
+   * пришлось бы собирать по правилам русского языка в коде.
+   */
+  milestoneAt: string | null;
+  milestoneLabel: string | null;
 }
 
 /**
@@ -51,6 +62,8 @@ export function useFollowers(): Followers | null {
           history: Array.isArray(json.history) ? json.history : [],
           growthAmount: typeof json.growthAmount === "number" ? json.growthAmount : null,
           growthPeriod: typeof json.growthPeriod === "string" ? json.growthPeriod : null,
+          milestoneAt: typeof json.milestoneAt === "string" ? json.milestoneAt : null,
+          milestoneLabel: typeof json.milestoneLabel === "string" ? json.milestoneLabel : null,
         });
       })
       .catch(() => {

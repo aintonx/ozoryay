@@ -4,10 +4,10 @@ import { useEffect, useRef, type ReactNode, type Ref } from "react";
 import { useReducedMotion } from "@/lib/useReducedMotion";
 
 /** Насколько сильно карточка может повернуться вслед за курсором. */
-const TILT_MAX_DEG = 5;
+export const TILT_MAX_DEG = 5;
 
 /** То же самое, но для карточек с `depth` — им положено чуть больше веса. */
-const TILT_MAX_DEG_DEEP = 6.5;
+export const TILT_MAX_DEG_DEEP = 6.5;
 
 function clamp01(n: number) {
   return Math.min(1, Math.max(0, n));
@@ -29,7 +29,7 @@ function clamp01(n: number) {
  * не отходят от нуля — карточка остаётся плоской, но живой во всём
  * остальном (свет, зерно, тени уже заложены в саму `.glass`).
  */
-function useTilt(active: boolean, intensity = 1) {
+export function useTilt(active: boolean, intensity = 1) {
   const ref = useRef<HTMLElement | null>(null);
   const reducedMotion = useReducedMotion();
 
@@ -81,8 +81,6 @@ function useTilt(active: boolean, intensity = 1) {
 }
 
 interface WidgetProps {
-  /** Иконка в шапке — как у системных виджетов. */
-  icon?: ReactNode;
   /** Короткая шапка: одно-два слова. */
   title?: string;
   children: ReactNode;
@@ -103,33 +101,23 @@ interface WidgetProps {
 
 /**
  * Виджет — прямоугольная карточка со скруглением, в языке домашнего экрана
- * телефона: сверху мелкая шапка с иконкой, ниже — содержимое.
+ * телефона.
+ *
+ * Без значка в шапке: карточка называет себя одним словом («БЕЗ ТЕБЯ»,
+ * «МЕЖДУ НАМИ»), тёплым и достаточно крупным, чтобы читаться само собой,
+ * без пиктограммы рядом как костыля. Идентичность виджета несёт не значок,
+ * а то, что на нём написано, и то, как это набрано.
  *
  * Стекло берётся из общего класса `.glass`, поэтому все карточки на сайте
- * выглядят одним набором, а не собранием разных панелей. Поверх него —
- * `.tilt`: общая для всех виджетов формула наклона и блика (см. `useTilt`
- * выше и `.tilt` в globals.css).
- *
- * Иконка в шапке стоит в собственном кружке-бейдже, а не просто рядом
- * с текстом: так у всех карточек один и тот же якорь — верхний левый угол
- * бейджа, — и заголовки выравниваются между собой сами, каким бы ни было
- * содержимое ниже.
+ * выглядят одним набором. Поверх него — `.tilt`: общая для всех виджетов
+ * формула наклона и блика (см. `useTilt` выше и `.tilt` в globals.css).
  */
-export function Widget({ icon, title, children, className = "", href, depth = false }: WidgetProps) {
+export function Widget({ title, children, className = "", href, depth = false }: WidgetProps) {
   const tiltRef = useTilt(true, depth ? TILT_MAX_DEG_DEEP / TILT_MAX_DEG : 1);
 
-  const header = (icon || title) && (
-    <div className="mb-[0.75rem] flex items-center gap-[0.5rem]">
-      {icon && (
-        <span className="flex h-[1.5rem] w-[1.5rem] shrink-0 items-center justify-center rounded-full bg-amber/14 text-[0.8rem] text-amber">
-          {icon}
-        </span>
-      )}
-      {title && (
-        <span className="font-system text-[11.5px] font-semibold tracking-[0.05em] text-star/54">
-          {title}
-        </span>
-      )}
+  const header = title && (
+    <div className="mb-[0.6rem] font-system text-[13px] font-semibold tracking-[0.04em] text-amber/85">
+      {title}
     </div>
   );
 
@@ -163,21 +151,23 @@ export function Widget({ icon, title, children, className = "", href, depth = fa
 }
 
 interface WidgetButtonProps {
-  icon: ReactNode;
   label: string;
   /** Вторая строка — что случится по нажатию. */
   hint?: string;
   onClick: () => void;
   disabled?: boolean;
   /**
-   * `row` — широкая карточка, иконка слева от текста.
-   * `tile` — маленький квадратный виджет: иконка сверху, подпись внизу.
-   * `feature` — крупная карточка с центрированием: бейдж, подпись и
-   * пояснение друг под другом посередине, как раньше стояла запись
-   * в `LockWidget` — для входа, который того стоит и не должен теряться
-   * в общем ряду.
+   * Графический акцент вместо иконки — необязательный, произвольной формы.
+   * Не бейдж с пиктограммой внутри: свободная фигура (свечение, россыпь
+   * точек, что угодно нефигуративное), которая говорит о смысле кнопки
+   * настроением, а не символом-подписью к самой себе.
    */
-  layout?: "row" | "tile" | "feature";
+  accent?: ReactNode;
+  /**
+   * `row` — широкая карточка, акцент слева от текста.
+   * `tile` — маленький квадратный виджет: акцент сверху, подпись внизу.
+   */
+  layout?: "row" | "tile";
   className?: string;
 }
 
@@ -185,46 +175,31 @@ interface WidgetButtonProps {
  * Виджет-кнопка. Тот же корпус, но нажимается: чуть подаётся под пальцем
  * и подсвечивается. Зона нажатия — вся карточка, поэтому в неё легко
  * попасть большим пальцем на ходу.
- *
- * `feature` — самый весомый формат (сейчас это вход в «Зону»), поэтому
- * ему достаётся `glass-deep` и чуть более заметный наклон, без отдельного
- * пропа: это следствие уже существующего смысла `layout`, а не новая ручка
- * управления.
  */
 export function WidgetButton({
-  icon,
   label,
   hint,
   onClick,
   disabled = false,
+  accent,
   layout = "row",
   className = "",
 }: WidgetButtonProps) {
-  const tiltRef = useTilt(!disabled, layout === "feature" ? TILT_MAX_DEG_DEEP / TILT_MAX_DEG : 1);
+  const tiltRef = useTilt(!disabled);
 
-  // Высота, выравнивание и центрирование текста — по формату. У `tile`
-  // высота ЗАФИКСИРОВАНА (не `min-h-`) по той же причине, что и раньше:
-  // `HomeScreen` меряет естественную высоту сетки через ResizeObserver
-  // и подгоняет под неё масштаб, а плавающая высота заворачивается
-  // в бесконечный дребезг при переносе строк. У `feature` высота тоже
-  // фиксирована — 11rem, ровно как у прежнего `LockWidget`, чтобы карточка
-  // входа не потерялась среди соседних плиток размером.
+  // Высота, выравнивание и центрирование текста — по формату. Высота
+  // `tile` ЗАФИКСИРОВАНА (не `min-h-`): `HomeScreen` меряет естественную
+  // высоту сетки через ResizeObserver и подгоняет под неё масштаб, а
+  // плавающая высота заворачивается в бесконечный дребезг при переносе
+  // строк.
   const layoutClasses =
     layout === "tile"
-      ? "h-[8.8rem] flex-col items-start gap-[0.75rem] overflow-hidden text-left"
-      : layout === "feature"
-        ? "h-[11rem] flex-col items-center justify-center gap-[0.55rem] overflow-hidden text-center"
-        : "items-center gap-[0.85rem] text-left";
+      ? "h-[9.6rem] flex-col items-start gap-[0.85rem] overflow-hidden text-left"
+      : "items-center gap-[0.9rem] text-left";
 
-  const badgeClasses =
-    layout === "tile"
-      ? "h-[2.4rem] w-[2.4rem] text-[1.2rem]"
-      : layout === "feature"
-        ? "h-[2.9rem] w-[2.9rem] text-[1.3rem]"
-        : "h-[2.15rem] w-[2.15rem] text-[1.08rem]";
-
-  const labelClasses = layout === "feature" ? "text-[16px]" : layout === "tile" ? "text-[15px]" : "text-[14.5px]";
-  const hintClasses = layout === "row" ? "text-[12px]" : "text-[12.5px]";
+  const accentWrapClasses = layout === "tile" ? "h-[2.6rem] w-[2.6rem]" : "h-[2.4rem] w-[2.4rem] shrink-0";
+  const labelClasses = layout === "tile" ? "text-[17px]" : "text-[16px]";
+  const hintClasses = "text-[13.5px]";
   const textWrapClasses = layout === "row" ? "flex-1" : "";
 
   return (
@@ -243,21 +218,19 @@ export function WidgetButton({
       // Гаснет только содержимое. Наклон и нажатие («подача под пальцем»)
       // тоже здесь не прописаны Tailwind-ом — обе живут в `.tilt`
       // (globals.css) через одну и ту же формулу transform.
-      className={`glass tilt ${layout === "feature" ? "glass-deep" : ""} group flex w-full rounded-[1.55rem] p-[1.05rem] disabled:pointer-events-none ${layoutClasses} ${className}`}
+      className={`glass tilt group flex w-full rounded-[1.55rem] p-[1.05rem] disabled:pointer-events-none ${layoutClasses} ${className}`}
     >
-      <span
-        className={`flex shrink-0 items-center justify-center rounded-full bg-amber/12 text-amber/90 transition-opacity duration-300 group-hover:bg-amber/18 group-disabled:opacity-40 ${badgeClasses}`}
-      >
-        {icon}
-      </span>
-      <span
-        className={`min-w-0 transition-opacity duration-300 group-disabled:opacity-45 ${textWrapClasses}`}
-      >
-        <span className={`font-system block leading-tight font-semibold text-star/94 ${labelClasses}`}>
+      {accent && (
+        <span className={`relative flex shrink-0 items-center justify-center transition-opacity duration-300 group-disabled:opacity-40 ${accentWrapClasses}`}>
+          {accent}
+        </span>
+      )}
+      <span className={`min-w-0 transition-opacity duration-300 group-disabled:opacity-45 ${textWrapClasses}`}>
+        <span className={`font-system block leading-tight font-semibold text-star/96 ${labelClasses}`}>
           {label}
         </span>
         {hint && (
-          <span className={`font-system mt-[0.22em] block leading-snug text-star/54 ${hintClasses}`}>
+          <span className={`font-system mt-[0.28em] block leading-snug text-star/60 ${hintClasses}`}>
             {hint}
           </span>
         )}

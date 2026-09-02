@@ -75,6 +75,29 @@ export function formatShortRuDate(separationStartISO: string, tz: string, now: D
 }
 
 /**
+ * Разовая метка на русском, с датой и временем: «28 июля 2026 в 18:00».
+ * В отличие от даты начала разлуки, год здесь не отбрасывается никогда:
+ * у такой метки он часть смысла («в две тысячи двадцать шестом», а не
+ * «в этом году»), а не сведение, которое можно опустить без потери.
+ */
+export function formatDateTimeRu(iso: string, tz: string): string {
+  const date = new Date(iso);
+  const dateLabel = new Intl.DateTimeFormat("ru", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: tz,
+  }).format(date);
+  const timeLabel = new Intl.DateTimeFormat("ru", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: tz,
+  }).format(date);
+  return `${dateLabel} в ${timeLabel}`;
+}
+
+/**
  * Сколько ночей длится разлука. Ровно столько же звёзд на небе.
  *
  * `floor` — сохранённый максимум: если её часовой пояс когда-нибудь сменится
