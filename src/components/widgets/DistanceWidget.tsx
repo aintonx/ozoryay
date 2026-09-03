@@ -20,33 +20,11 @@ function compassLabel(deg: number): string {
 }
 
 /**
- * Компас — вместо прежней линии маршрута с точками.
- *
- * Не живой (без гироскопа телефона): азимут между двумя городами не
- * меняется от того, как повёрнут телефон в руке, а живой датчик означал
- * бы ещё и экран с просьбой разрешить доступ к нему — лишний шаг ради
- * стрелки, которая всё равно указывает в одну и ту же сторону. Вместо
- * этого — циферблат с фиксированным севером сверху и стрелкой, повёрнутой
- * на реальный азимут `bearingDeg`: та же информация, без диалогов
- * с разрешениями и без риска, что на части телефонов датчик просто
- * не ответит.
- *
- * Нарочно без лишних засечек и цифр по кругу — только север, стрелка
- * и точка-ось: азимут словом («ЮЮВ») уже написан рядом текстом, а лишние
- * деления на циферблате не прибавили бы ясности, только шум.
+ * Условный потолок шкалы — не настоящий предел расстояния (предела в
+ * принципе нет), а масштаб, при котором реалистичные значения не упираются
+ * в самый край полосы и не теряются у нуля.
  */
-function CompassDial({ bearingDeg }: { bearingDeg: number }) {
-  return (
-    <svg viewBox="0 0 24 24" className="h-full w-full" aria-hidden="true">
-      <circle cx="12" cy="12" r="9" fill="none" stroke="var(--color-star)" strokeOpacity="0.28" strokeWidth="1.1" />
-      <path d="M12 1.7v1.9" stroke="var(--color-star)" strokeOpacity="0.5" strokeWidth="1.3" strokeLinecap="round" />
-      <g transform={`rotate(${bearingDeg} 12 12)`}>
-        <path d="M12 12 L10.9 12 L12 3.4 L13.1 12 Z" fill="var(--color-amber-hot)" />
-      </g>
-      <circle cx="12" cy="12" r="1.15" fill="var(--color-night-deep)" stroke="var(--color-amber-hot)" strokeWidth="1" />
-    </svg>
-  );
-}
+const SCALE_MAX_KM = 3000;
 
 interface DistanceWidgetProps {
   distanceKm: number;
@@ -60,10 +38,15 @@ interface DistanceWidgetProps {
 /**
  * Сколько между нами.
  *
- * Прежняя дуга-маршрут с двумя метками убрана целиком — расстояние теперь
- * говорит само за себя одним крупным числом, тем же по роли и размеру,
- * что число дней в соседнем виджете. Компас и города — во вложенной
- * панели ниже: не расшифровка карты, а азимут и два названия, коротко.
+ * Циферблат-компас убран — вместо направления теперь полоса-шкала: то же
+ * расстояние, но на фоне условного масштаба, а не голым числом. Той же
+ * визуальной массы и по той же трёхчастной структуре (визуализация →
+ * опорные подписи по краям → строка-подпись), что календарь недели в
+ * соседнем виджете «БЕЗ ТЕБЯ»: пара должна читаться вместе, одного веса,
+ * а не как два случайно похожих по духу виджета.
+ *
+ * Азимут словом («ЮЮВ») и города никуда не делись — просто переехали
+ * в подпись под шкалой вместо отдельного циферблата со стрелкой.
  */
 export default function DistanceWidget({
   distanceKm,
@@ -72,27 +55,29 @@ export default function DistanceWidget({
   bearingDeg,
   className,
 }: DistanceWidgetProps) {
+  const pct = Math.min(100, Math.max(0, (distanceKm / SCALE_MAX_KM) * 100));
+
   return (
     <Widget title="МЕЖДУ НАМИ" className={className}>
       <div className="flex flex-1 flex-col justify-between gap-[0.85rem]">
-        <div className="relative flex flex-1 flex-col items-center justify-center gap-[0.15rem] py-[0.4rem]">
-          <div className="hero-glow" aria-hidden="true" />
-          <span className="hero-number relative tabular-nums">{spaceThousands(distanceKm)}</span>
-          <span className="hero-unit relative">км</span>
+        <div className="flex flex-1 flex-col items-center justify-center gap-[0.15rem] py-[0.4rem]">
+          <span className="hero-number">{spaceThousands(distanceKm)}</span>
+          <span className="hero-unit">км</span>
         </div>
 
-        <div className="inset-panel flex items-center gap-[0.7rem] px-[0.85rem] py-[0.65rem]">
-          <span className="h-[2.3rem] w-[2.3rem] shrink-0">
-            <CompassDial bearingDeg={bearingDeg} />
-          </span>
-          <span className="min-w-0">
-            <span className="font-system block text-[14.5px] font-semibold text-amber-hot">
-              {compassLabel(bearingDeg)}
-            </span>
-            <span className="font-system block truncate text-[12px] text-star/48">
-              {myCity} → {herCity}
-            </span>
-          </span>
+        <div className="inset-panel px-[0.85rem] py-[0.65rem]">
+          <div className="scale-track">
+            <div className="scale-fill" style={{ width: `${pct}%` }} />
+            <div className="scale-marker" style={{ left: `${pct}%` }} />
+          </div>
+          <div className="trend-endpoints">
+            <span>0</span>
+            <span>{SCALE_MAX_KM / 2}</span>
+            <span>{SCALE_MAX_KM} км</span>
+          </div>
+          <div className="trend-caption-line">
+            {compassLabel(bearingDeg)} · {myCity} → {herCity}
+          </div>
         </div>
       </div>
     </Widget>

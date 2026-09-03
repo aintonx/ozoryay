@@ -97,6 +97,47 @@ export function formatDateTimeRu(iso: string, tz: string): string {
   return `${dateLabel} в ${timeLabel}`;
 }
 
+const WEEKDAY_MAP: Record<string, number> = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 7 };
+
+export interface WeekRange {
+  /** 1 (понедельник) … 7 (воскресенье). */
+  weekday: number;
+  monday: [number, number, number];
+  sunday: [number, number, number];
+}
+
+/**
+ * Календарная неделя (пн–вс), в которую попадает `at` в поясе `tz`, плюс
+ * номер дня недели самого `at`. Используется календарём в `TimerWidget`:
+ * семь ячеек недели и подсветка сегодняшней — те же дни, что показал бы
+ * настоящий календарь в её поясе, а не в местном времени браузера.
+ *
+ * Арифметика — в UTC-миллисекундах от гражданской даты, тем же приёмом,
+ * что и в `daysBetweenCivil`: часовой пояс уже учтён на входе (`civilDateInTz`),
+ * дальше это просто счёт календарных суток, а не разница моментов времени.
+ */
+export function weekRangeInTz(at: Date, tz: string): WeekRange {
+  const civil = civilDateInTz(at, tz);
+  const weekdayName = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short" }).format(at);
+  const weekday = WEEKDAY_MAP[weekdayName] ?? 1;
+
+  const toCivil = (ms: number): [number, number, number] => {
+    const d = new Date(ms);
+    return [d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate()];
+  };
+
+  const todayMs = Date.UTC(civil[0], civil[1] - 1, civil[2]);
+  const mondayMs = todayMs - (weekday - 1) * 86400000;
+  const sundayMs = mondayMs + 6 * 86400000;
+
+  return { weekday, monday: toCivil(mondayMs), sunday: toCivil(sundayMs) };
+}
+
+/** «31.08» — день и месяц гражданской даты, для подписей недели. */
+export function formatCivilShort([, m, d]: [number, number, number]): string {
+  return `${String(d).padStart(2, "0")}.${String(m).padStart(2, "0")}`;
+}
+
 /**
  * Сколько ночей длится разлука. Ровно столько же звёзд на небе.
  *

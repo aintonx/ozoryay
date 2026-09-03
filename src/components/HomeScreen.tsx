@@ -26,49 +26,61 @@ const MIN_SCALE = 0.76;
 const WIDE_QUERY = "(min-width: 640px)";
 
 /**
- * Акцент «Поцелуя» — не значок, а тёплая светящаяся точка. В полёте вокруг
- * нее расходится кольцо (то же `gentle-pulse`, что и у метки «я» на карте
- * расстояния, только быстрее — 1.1с вместо 2.6с): ощущение, что что-то
- * прямо сейчас происходит, без картинки самого поцелуя.
+ * Акцент «Поцелуя» — короткий ряд столбиков вместо одной точки: тот же
+ * визуальный словарь, что у спарклайна подписчиков и календаря «БЕЗ ТЕБЯ»
+ * рядом, только здесь это не данные, а неподвижный декоративный силуэт —
+ * высоты фиксированные, не история отправок. В полёте столбики по очереди
+ * пульсируют — то же ощущение «что-то происходит прямо сейчас», что раньше
+ * несло расходящееся кольцо вокруг точки, просто в словаре столбиков.
  */
 function KissAccent({ inFlight }: { inFlight: boolean }) {
+  const heights = [45, 75, 100, 75, 45];
   return (
-    <span className="relative flex h-full w-full items-center justify-center">
-      <span
-        aria-hidden="true"
-        className="h-[0.85rem] w-[0.85rem] rounded-full bg-amber-hot/85"
-        style={{ boxShadow: "0 0 20px 6px rgba(255, 227, 176, 0.45)" }}
-      />
-      {inFlight && (
+    <span className="flex h-full w-full items-end justify-center gap-[3px]" aria-hidden="true">
+      {heights.map((h, i) => (
         <span
-          aria-hidden="true"
-          className="absolute h-[0.85rem] w-[0.85rem] animate-[gentle-pulse_1.1s_ease-out_infinite] rounded-full bg-amber-hot/55"
+          key={i}
+          className={`kiss-bar w-[3px] rounded-full bg-amber-hot ${inFlight ? "animate-[kiss-pulse_0.9s_ease-in-out_infinite]" : ""}`}
+          style={{
+            height: `${h}%`,
+            opacity: inFlight ? undefined : 0.55,
+            animationDelay: inFlight ? `${i * 90}ms` : undefined,
+          }}
         />
-      )}
+      ))}
     </span>
   );
 }
 
 /**
- * Акцент «Неба» — три тихо мерцающие точки-звезды, а не значок звезды.
- * Разные размеры, задержки и длительности, чтобы россыпь не читалась
- * как один и тот же повторяющийся элемент трижды.
+ * Акцент «Неба» — ряд из пяти тихо мерцающих точек вместо россыпи вразброс:
+ * тот же силуэт «маленькая–большая–маленькая», что у столбиков «Поцелуя»
+ * по соседству, только кругами и мерцанием, а не пульсом. Средняя точка —
+ * тёплая (тот же акцент, что раньше нёс один из трёх значков-звёзд),
+ * остальные — цвета звёзд.
  */
 function SkyAccent() {
+  const dots = [
+    { scale: 0.65, color: "bg-star/70", duration: 2.6, delay: "0s" },
+    { scale: 0.85, color: "bg-star/55", duration: 3.1, delay: "-0.9s" },
+    { scale: 1, color: "bg-amber-hot/80", duration: 3.6, delay: "-1.8s" },
+    { scale: 0.85, color: "bg-star/55", duration: 3, delay: "-0.4s" },
+    { scale: 0.65, color: "bg-star/70", duration: 2.8, delay: "-1.3s" },
+  ];
   return (
-    <span className="relative flex h-full w-full items-center justify-center" aria-hidden="true">
-      <span
-        className="absolute h-[0.5rem] w-[0.5rem] rounded-full bg-star/70"
-        style={{ left: "26%", top: "30%", animation: "twinkle-soft 3.2s ease-in-out infinite", animationDelay: "-0.4s" }}
-      />
-      <span
-        className="absolute h-[0.34rem] w-[0.34rem] rounded-full bg-star/55"
-        style={{ left: "64%", top: "22%", animation: "twinkle-soft 2.6s ease-in-out infinite", animationDelay: "-1.5s" }}
-      />
-      <span
-        className="absolute h-[0.4rem] w-[0.4rem] rounded-full bg-amber-hot/70"
-        style={{ left: "50%", top: "60%", animation: "twinkle-soft 3.6s ease-in-out infinite", animationDelay: "-2.1s" }}
-      />
+    <span className="flex h-full w-full items-center justify-center gap-[5px]" aria-hidden="true">
+      {dots.map((d, i) => (
+        <span
+          key={i}
+          className={`rounded-full ${d.color}`}
+          style={{
+            width: `${0.34 * d.scale}rem`,
+            height: `${0.34 * d.scale}rem`,
+            animation: `twinkle-soft ${d.duration}s ease-in-out infinite`,
+            animationDelay: d.delay,
+          }}
+        />
+      ))}
     </span>
   );
 }
@@ -228,7 +240,7 @@ export default function HomeScreen({
           />
 
           {followers && (
-            <FollowersWidget data={followers} tz={settings.herTimezone} className="col-span-2" />
+            <FollowersWidget data={followers} className="col-span-2" />
           )}
           <ZonaWidget onOpen={onOpenZona} className="col-span-2" />
         </div>

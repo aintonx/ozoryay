@@ -14,6 +14,10 @@
   --font-letter: var(--font-spectral), Georgia, serif;
   --font-text: var(--font-golos), system-ui, sans-serif;
   --font-mono: var(--font-jetbrains), ui-monospace, monospace;
+  /* Главное число виджета — отдельная роль от --font-display: тот же Prata
+     остаётся заголовку-рассвету, а цифры внутри виджетов вообще не должны
+     держать засечку (см. .hero-number ниже). */
+  --font-number: var(--font-oswald), var(--font-system);
   /* Системный шрифт устройства: на её айфоне это SF Pro — тот же, что во всём
      интерфейсе телефона. Виджеты должны звучать «системно». */
   --font-system:
@@ -348,19 +352,21 @@ body {
  * Главное число виджета.
  *
  * Один факт — дни, километры, число подписчиков — и есть содержимое
- * карточки; всё остальное вокруг него вторично. Набрано тем же шрифтом,
- * что и заголовки-рассветы («Prata», `--font-display»), а не системным:
- * цифра здесь не деталь интерфейса, а витрина. Тёплое свечение за буквами —
- * не декоративная рамка, а ощущение, что число само немного светится.
+ * карточки; всё остальное вокруг него вторично. Больше не «Prata»:
+ * засечка внутри виджета читалась как декоративная витрина, а не как
+ * деталь интерфейса. Oswald — конденсированный гротеск: та же логика,
+ * что на табло или в счётчике — сузить букву, чтобы поднять кегль, не
+ * потеряв ширины строки. Тёплое свечение за цифрами (`.hero-glow`) убрано
+ * без замены: числу не нужна отдельная подсветка, чтобы быть заметным.
  */
 .hero-number {
-  font-family: var(--font-display);
-  font-weight: 400;
-  font-size: 3.4rem;
+  font-family: var(--font-number);
+  font-weight: 600;
+  font-size: 3.65rem;
   line-height: 1;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
   color: var(--color-star);
-  text-shadow: 0 0 34px rgba(242, 197, 124, 0.25);
+  font-variant-numeric: tabular-nums lining-nums;
 }
 
 .hero-unit {
@@ -370,28 +376,139 @@ body {
 }
 
 /*
- * Мягкое пятно света за главным числом — будто оно само и есть источник
- * тепла в карточке. Родителю нужен `position: relative`, чтобы `inset`
- * считался от него, а не от случайного предка.
- */
-.hero-glow {
-  position: absolute;
-  inset: -18% 8%;
-  background: radial-gradient(60% 65% at 50% 45%, rgba(242, 197, 124, 0.22), transparent 72%);
-  filter: blur(6px);
-  pointer-events: none;
-}
-
-/*
  * Вложенная панель — «контейнер внутри контейнера»: вторичные подробности
- * (тикающее время, азимут, дата вехи) стоят не голым текстом на стекле,
- * а в собственной, чуть более тёмной ячейке. У главного стекла заметно
- * своя глубина; у этой — своя, поменьше, ровно на полтона тише.
+ * стоят не голым текстом на стекле, а в собственной, чуть более тёмной
+ * ячейке. У главного стекла заметно своя глубина; у этой — своя, поменьше,
+ * ровно на полтона тише.
  */
 .inset-panel {
   background: rgba(5, 7, 15, 0.34);
   border: 1px solid rgba(255, 255, 255, 0.07);
   border-radius: 1rem;
+}
+
+/*
+ * Семья «Тренд» — общий язык «БЕЗ ТЕБЯ» и «МЕЖДУ НАМИ»: не факт сам по
+ * себе, а факт на фоне остального времени или расстояния. У обоих одна
+ * и та же структура внутри `.inset-panel`: строка-визуализация (календарь
+ * / шкала), строка с двумя опорными подписями по краям, строка-подпись
+ * целиком. Совпадающая структура — не совпадение: календарь и шкала должны
+ * читаться парой, одного размера и веса, а не двумя похожими по духу, но
+ * разными по факту виджетами.
+ */
+.trend-endpoints {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 0.4rem;
+  font-family: var(--font-system);
+  font-size: 10px;
+  color: rgba(201, 214, 240, 0.4);
+}
+
+.trend-caption-line {
+  margin-top: 0.5rem;
+  text-align: center;
+  font-family: var(--font-system);
+  font-size: 11.5px;
+  color: rgba(201, 214, 240, 0.5);
+}
+
+/*
+ * Календарь недели — «БЕЗ ТЕБЯ». Семь ячеек размером почти во всю ширину
+ * карточки, не мелкие точки: та же визуальная масса, что у шкалы расстояния
+ * рядом, поэтому пара виджетов держится вместе, а не разъезжается — а
+ * пустота между числом дней и панелью ниже заполняется собой, а не полями.
+ */
+.week-row {
+  display: flex;
+  width: 100%;
+  gap: 0.3rem;
+}
+
+.week-cell {
+  flex: 1 1 0;
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.5rem;
+  background: rgba(255, 255, 255, 0.05);
+  font-family: var(--font-system);
+  font-size: 10.5px;
+  font-weight: 600;
+  color: rgba(201, 214, 240, 0.42);
+}
+
+.week-cell.is-today {
+  background: var(--color-amber-hot);
+  color: var(--color-night-deep);
+}
+
+/*
+ * Шкала расстояния — «МЕЖДУ НАМИ». 3000 км в `DistanceWidget` — условный
+ * масштаб полосы, не настоящий предел (потолка у расстояния нет): выбран
+ * так, чтобы метка не упиралась в самый край при реалистичных значениях.
+ * Полоса и метка заполняются от нуля при монтировании — `.scale-fill` и
+ * `.scale-marker` получают целевые `width`/`left` инлайновым `style`
+ * из компонента, а не статикой здесь.
+ */
+.scale-track {
+  position: relative;
+  width: 100%;
+  height: 2px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.scale-fill {
+  position: absolute;
+  inset: 0;
+  width: 0%;
+  border-radius: inherit;
+  background: var(--color-amber);
+  transition: width 900ms var(--ease-emerge);
+}
+
+.scale-marker {
+  position: absolute;
+  top: 50%;
+  left: 0%;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--color-amber-hot);
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 0 3px rgba(5, 7, 15, 0.55);
+  transition: left 900ms var(--ease-emerge);
+}
+
+/*
+ * Спарклайн подписчиков — «ТЫ ВОСХИЩАЕШЬ». Столбики читаются из тех же
+ * данных, что уже лежат в `public/data/followers.json` (`history`) —
+ * не новое число, просто то, что раньше нигде не показывалось. Без
+ * подписи под ними: одного взгляда на растущую линию хватает, а любая
+ * цифра рядом с ней («+8 за 3 дня» и подобное) снова превращала бы
+ * ощущение роста в отчёт.
+ */
+.trend-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 1.7rem;
+  width: 100%;
+}
+
+.trend-bar {
+  flex: 1 1 0;
+  min-width: 3px;
+  border-radius: 2px 2px 0 0;
+  background: var(--color-amber);
+  opacity: 0.5;
+}
+
+.trend-bar.is-last {
+  opacity: 1;
+  background: var(--color-amber-hot);
 }
 
 /*
@@ -420,6 +537,52 @@ body {
   50% {
     opacity: 0;
   }
+}
+
+/*
+ * Пульс акцента «Поцелуя» — столбики растут и гаснут, пока письмо в пути.
+ * Тот же язык столбиков, что у `.trend-bar`, только здесь это не данные,
+ * а декоративный силуэт (высоты в `KissAccent` фиксированные, не история
+ * отправок): семья одна, источник — разный, и это не должно запутать
+ * читающего код в будущем.
+ */
+@keyframes kiss-pulse {
+  0%,
+  100% {
+    transform: scaleY(0.7);
+    opacity: 0.55;
+  }
+  50% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+/* Столбики растут вверх от низа, а не от центра. */
+.kiss-bar {
+  transform-origin: bottom;
+}
+
+/*
+ * Точечная линия-разделитель в «Зоне» — там, где раньше была сплошная
+ * черта (`border-t`). Та же россыпь мелких меток, что и в календаре
+ * «БЕЗ ТЕБЯ» и в акценте «Неба»: не полоска для галочки, а третье
+ * появление одного и того же визуального словаря семьи «Тренд».
+ */
+.tick-rule {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  overflow: hidden;
+}
+
+.tick-rule > span {
+  height: 3px;
+  width: 3px;
+  flex: 1 1 3px;
+  min-width: 2px;
+  border-radius: 999px;
+  background: rgba(201, 214, 240, 0.22);
 }
 
 @media (prefers-reduced-motion: reduce) {

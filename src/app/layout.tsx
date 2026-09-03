@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Prata, Spectral, Golos_Text, JetBrains_Mono } from "next/font/google";
+import { Prata, Spectral, Golos_Text, JetBrains_Mono, Oswald } from "next/font/google";
 import "./globals.css";
 
 // Заголовок: Prata — контрастная антиква с характером, «дорогая». Появляется
@@ -32,6 +32,17 @@ const jetbrains = JetBrains_Mono({
   subsets: ["cyrillic", "latin"],
   weight: ["200", "300"],
   variable: "--font-jetbrains",
+  display: "swap",
+});
+
+// Главное число виджета: Oswald — конденсированный гротеск. Только latin:
+// в hero-number попадают исключительно цифры, кириллица сюда не нужна ни
+// разу, а лишний подключённый набор символов — это лишний вес шрифта без
+// единого случая, когда он пригодится.
+const oswald = Oswald({
+  subsets: ["latin"],
+  weight: ["500", "600"],
+  variable: "--font-oswald",
   display: "swap",
 });
 
@@ -109,7 +120,7 @@ export default function RootLayout({
   return (
     <html
       lang="ru"
-      className={`${prata.variable} ${spectral.variable} ${golos.variable} ${jetbrains.variable}`}
+      className={`${prata.variable} ${spectral.variable} ${golos.variable} ${jetbrains.variable} ${oswald.variable}`}
     >
       <body>{children}</body>
     </html>

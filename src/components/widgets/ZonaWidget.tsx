@@ -24,6 +24,11 @@ interface ZonaWidgetProps {
  * ничего общего с «бейдж + подпись + пояснение» — общие остаются только
  * стекло, наклон и глубина (`glass`, `glass-deep`, `tilt` — те же классы,
  * что и у остальных карточек сайта), взятые напрямую, а не через обёртку.
+ *
+ * Сплошная черта над нижней строкой заменена на россыпь мелких меток
+ * (`.tick-rule`) — тот же словарь мелких точек, что у календаря «БЕЗ
+ * ТЕБЯ», у шкалы «МЕЖДУ НАМИ» и у мерцания на «Взгляни на небо»: четвёртое
+ * появление одного и того же визуального языка, а не просто разделитель.
  */
 export default function ZonaWidget({ onOpen, className = "" }: ZonaWidgetProps) {
   const tiltRef = useTilt(true, TILT_MAX_DEG_DEEP / TILT_MAX_DEG);
@@ -53,7 +58,13 @@ export default function ZonaWidget({ onOpen, className = "" }: ZonaWidgetProps) 
         </span>
       </div>
 
-      <div className="flex items-center justify-between gap-[0.7rem] border-t border-white/[0.08] pt-[0.65rem]">
+      <div className="tick-rule pt-[0.5rem]" aria-hidden="true">
+        {Array.from({ length: 18 }).map((_, i) => (
+          <span key={i} />
+        ))}
+      </div>
+
+      <div className="mt-[0.55rem] flex items-center justify-between gap-[0.7rem]">
         <span className="font-system min-w-0 truncate text-[12px] text-star/44">
           только наше, что бы ни случилось со всем остальным небом
         </span>

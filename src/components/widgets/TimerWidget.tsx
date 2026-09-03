@@ -1,7 +1,8 @@
 "use client";
 
 import { Widget } from "../ui/Widget";
-import { formatShortRuDate } from "@/lib/time/days";
+import { formatCivilShort, formatShortRuDate, weekRangeInTz } from "@/lib/time/days";
+import { plural } from "@/lib/text/plural";
 import type { SeparationCounter } from "@/lib/time/useSeparationDays";
 import { useMemo } from "react";
 
@@ -14,48 +15,72 @@ interface TimerWidgetProps {
   className?: string;
 }
 
+const WEEKDAY_LABELS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+
 /**
  * Сколько я без тебя.
  *
- * Заполняющихся колец здесь больше нет — карточка держится на одном факте:
- * числе дней, набранном крупнее всего на сайте. Это единственное, что
- * должно быть понятно с одного взгляда, без объяснений и без дуг, которые
- * нужно было ещё и расшифровать.
+ * Число дней — по-прежнему крупнее всего на сайте и по-прежнему
+ * единственное, что должно быть понятно с одного взгляда. Тикающие часы
+ * под ним убраны: секунды спорили за внимание с самим фактом, а не
+ * поддерживали его.
  *
- * Всё остальное — тикающее время и дата, с которой всё началось, —
- * не соперничает с числом за внимание, а стоит рядом, в собственной,
- * чуть более тёмной панели: втором, младшем контейнере внутри первого.
- * Абстрактное число дней иначе ничем не привязано к реальности; «с 30
- * июня» возвращает его обратно в конкретный день в календаре.
+ * Вместо часов — календарная неделя (пн–вс, сегодня подсвечен), той же
+ * визуальной массы и по той же трёхчастной структуре (визуализация →
+ * опорные даты по краям → строка-подпись), что шкала расстояния в
+ * соседнем виджете: пара должна читаться вместе, а не как два случайно
+ * похожих по духу виджета. Это заодно убирает и пустоту, которая раньше
+ * была между числом дней и тонкой нижней панелью, — календарь занимает
+ * ровно тот вес, что и шкала рядом.
+ *
+ * Подпись внизу совмещает то же число дней словами («9 недель и 1 день»)
+ * с датой начала («с 30 июня»): дата привязывает абстрактное число обратно
+ * к конкретному дню в календаре, а слова переводят его в единицы, которые
+ * проще держать в голове, чем сразу три цифры подряд.
  */
 export default function TimerWidget({ counter, separationStartISO, tz, className }: TimerWidgetProps) {
-  const { days, hours, minutes, seconds } = counter;
+  const { days } = counter;
+  const weeks = Math.floor(days / 7);
+  const restDays = days % 7;
 
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const dayWord = days % 10 === 1 && days % 100 !== 11 ? "день" : "дней";
-
-  // Дата пересчитывается только когда меняются её входные данные, а не
-  // на каждый секундный тик counter — Intl.DateTimeFormat не бесплатен,
-  // а строка всё равно не меняется чаще, чем раз в сутки.
+  // Дата и неделя пересчитываются только когда меняются входные данные
+  // или сам день (`days` от тикающего счётчика меняется ровно раз в сутки
+  // в её поясе) — не на каждый секундный тик: Intl.DateTimeFormat не
+  // бесплатен, а результат всё равно не меняется чаще.
   const sinceLabel = useMemo(
     () => formatShortRuDate(separationStartISO, tz),
     [separationStartISO, tz],
+  );
+  const week = useMemo(
+    () => weekRangeInTz(new Date(), tz),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tz, days],
   );
 
   return (
     <Widget title="БЕЗ ТЕБЯ" depth className={className}>
       <div className="flex flex-1 flex-col justify-between gap-[0.85rem]">
-        <div className="relative flex flex-1 flex-col items-center justify-center gap-[0.15rem] py-[0.4rem]">
-          <div className="hero-glow" aria-hidden="true" />
-          <span className="hero-number relative tabular-nums">{days}</span>
-          <span className="hero-unit relative">{dayWord}</span>
+        <div className="flex flex-1 flex-col items-center justify-center gap-[0.15rem] py-[0.4rem]">
+          <span className="hero-number">{days}</span>
+          <span className="hero-unit">{plural(days, "день", "дня", "дней")}</span>
         </div>
 
-        <div className="inset-panel flex flex-col items-center gap-[0.15rem] px-[0.9rem] py-[0.6rem]">
-          <span className="font-mono text-[16px] leading-none font-light tabular-nums text-star/85">
-            {pad(hours)}:{pad(minutes)}:{pad(seconds)}
-          </span>
-          <span className="font-system text-[12.5px] text-star/48">с {sinceLabel}</span>
+        <div className="inset-panel px-[0.85rem] py-[0.65rem]">
+          <div className="week-row">
+            {WEEKDAY_LABELS.map((label, i) => (
+              <span key={label} className={`week-cell${i + 1 === week.weekday ? " is-today" : ""}`}>
+                {label}
+              </span>
+            ))}
+          </div>
+          <div className="trend-endpoints">
+            <span>{formatCivilShort(week.monday)}</span>
+            <span>{formatCivilShort(week.sunday)}</span>
+          </div>
+          <div className="trend-caption-line">
+            {weeks} {plural(weeks, "неделя", "недели", "недель")}
+            {restDays > 0 && ` и ${restDays} ${plural(restDays, "день", "дня", "дней")}`} · с {sinceLabel}
+          </div>
         </div>
       </div>
     </Widget>
