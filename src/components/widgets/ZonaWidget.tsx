@@ -4,76 +4,54 @@ import { useTilt, TILT_MAX_DEG_DEEP, TILT_MAX_DEG } from "../ui/Widget";
 import type { Ref } from "react";
 
 interface ZonaWidgetProps {
-  /** Взгляд пошёл вверх, к «Зоне» — см. `ZonaLift` в `Night`. */
+  /**
+   * Взгляд пошёл вверх, к «Зоне» — см. `ZonaLift` в `Night`. Сейчас не
+   * используется здесь: страница `/zona` ещё не готова открываться (см.
+   * комментарий ниже). Проп и его тип оставлены как есть — `HomeScreen`
+   * и `Night` продолжают передавать его без изменений, — чтобы включить
+   * переход обратно можно было одной строкой прямо в этом файле.
+   */
   onOpen: () => void;
   className?: string;
 }
 
 /**
- * Вход в «Зону» — разговор на случай, если однажды замолчит всё остальное.
+ * Вход в «Зону» — пока не вход.
  *
- * Раньше это была плитка со значком и подписью «то, что останется
- * всегда» — красиво, но непонятно, что вообще нажимать. Теперь карточка
- * сама выглядит как открытое поле ввода: курсор мигает, приглашение
- * написано от первого лица, а под чертой — не пример переписки, а то,
- * что «Зона» такое: место, которое остаётся нашим, что бы ни случилось
- * со всем остальным (тот же образ, что раньше нёс на себе один только
- * значок, — здесь он стал словами).
+ * Страница `/zona` ещё не готова открываться по-настоящему, поэтому
+ * карточка временно не кнопка и никуда не ведёт: тот же корпус (`glass`,
+ * `glass-deep`, `tilt`), что и у остальных карточек сайта, но без
+ * `onClick`. Прежнее «поле ввода» с мигающим курсором и приглашением
+ * писать — тоже убрано целиком: обещать разговор, который пока никуда
+ * не открывается, хуже, чем честно сказать, что его ещё нет.
  *
- * Своя вёрстка, не через `WidgetButton`: у формата «поле ввода» нет
- * ничего общего с «бейдж + подпись + пояснение» — общие остаются только
- * стекло, наклон и глубина (`glass`, `glass-deep`, `tilt` — те же классы,
- * что и у остальных карточек сайта), взятые напрямую, а не через обёртку.
- *
- * Сплошная черта над нижней строкой заменена на россыпь мелких меток
- * (`.tick-rule`) — тот же словарь мелких точек, что у календаря «БЕЗ
- * ТЕБЯ», у шкалы «МЕЖДУ НАМИ» и у мерцания на «Взгляни на небо»: четвёртое
- * появление одного и того же визуального языка, а не просто разделитель.
+ * Вместо этого — несколько тускло-приглушённых полос вместо текста: тот
+ * же приём, которым сама iOS прячет содержимое уведомления на
+ * заблокированном экране, если в настройках выключен его показ. Поверх —
+ * короткая подпись без экивоков: «Она откроется позже».
  */
-export default function ZonaWidget({ onOpen, className = "" }: ZonaWidgetProps) {
+export default function ZonaWidget({ className = "" }: ZonaWidgetProps) {
   const tiltRef = useTilt(true, TILT_MAX_DEG_DEEP / TILT_MAX_DEG);
 
   return (
-    <button
-      ref={tiltRef as Ref<HTMLButtonElement>}
-      type="button"
-      onClick={(e) => {
-        if (e.detail > 0) e.currentTarget.blur();
-        onOpen();
-      }}
-      className={`glass glass-deep tilt flex min-h-[11.5rem] w-full flex-col rounded-[1.55rem] p-[1.05rem] text-left ${className}`}
+    <div
+      ref={tiltRef as Ref<HTMLDivElement>}
+      className={`glass glass-deep tilt flex min-h-[7.4rem] w-full flex-col rounded-[1.55rem] p-[1.05rem] ${className}`}
     >
       <div className="mb-[0.6rem] font-system text-[13px] font-semibold tracking-[0.04em] text-amber/85">
         Зона
       </div>
 
-      <div className="flex flex-1 items-center">
-        <span className="font-system text-[17px] text-star/42">
-          что у тебя на уме?
-          <span
-            aria-hidden="true"
-            className="ml-[2px] inline-block w-[2px] translate-y-[2px] animate-[blink_1s_steps(1)_infinite] bg-amber-hot align-middle"
-            style={{ height: "1.15em" }}
-          />
+      <div className="flex flex-1 flex-col items-center justify-center gap-[0.8rem]">
+        <div className="flex w-full max-w-[13rem] flex-col items-center gap-[0.4rem]" aria-hidden="true">
+          <span className="h-[0.55rem] w-[70%] rounded-full bg-star/16" />
+          <span className="h-[0.55rem] w-[90%] rounded-full bg-star/16" />
+          <span className="h-[0.55rem] w-[50%] rounded-full bg-star/16" />
+        </div>
+        <span className="font-system text-[13.5px] font-medium text-amber-hot/85">
+          Она откроется позже
         </span>
       </div>
-
-      <div className="tick-rule pt-[0.5rem]" aria-hidden="true">
-        {Array.from({ length: 18 }).map((_, i) => (
-          <span key={i} />
-        ))}
-      </div>
-
-      <div className="mt-[0.55rem] flex items-center justify-between gap-[0.7rem]">
-        <span className="font-system min-w-0 truncate text-[12px] text-star/44">
-          только наше, что бы ни случилось со всем остальным небом
-        </span>
-        <span className="flex h-[1.9rem] w-[1.9rem] shrink-0 items-center justify-center rounded-full bg-amber/16 text-amber-hot">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M4.6 12h13.4M13.2 7l5 5-5 5" />
-          </svg>
-        </span>
-      </div>
-    </button>
+    </div>
   );
 }

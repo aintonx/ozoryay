@@ -28,6 +28,14 @@ function clamp01(n: number) {
  * прикосновения того не стоит. Переменные в этом случае просто никогда
  * не отходят от нуля — карточка остаётся плоской, но живой во всём
  * остальном (свет, зерно, тени уже заложены в саму `.glass`).
+ *
+ * Нажатие — отдельным, всегда включённым эффектом ниже, а не через
+ * псевдокласс `:active`: на iOS Safari он либо не успевает сработать на
+ * быстром тапе, либо снимается рывком, без перехода, — то самое «резко
+ * и рвано». Тот же Pointer Events API, что уже водит наклон и свайп между
+ * экранами (`Screens`), просто переключает класс `.is-pressed`, а вход
+ * и выход из него — уже с разным, каждый свой плавным переходом — задаёт
+ * `.tilt`/`.tilt.is-pressed` в globals.css.
  */
 export function useTilt(active: boolean, intensity = 1) {
   const ref = useRef<HTMLElement | null>(null);
@@ -77,6 +85,25 @@ export function useTilt(active: boolean, intensity = 1) {
     };
   }, [active, reducedMotion, intensity]);
 
+  useEffect(() => {
+    const el = ref.current;
+    if (!active || !el) return;
+
+    const press = () => el.classList.add("is-pressed");
+    const release = () => el.classList.remove("is-pressed");
+
+    el.addEventListener("pointerdown", press);
+    el.addEventListener("pointerup", release);
+    el.addEventListener("pointercancel", release);
+    el.addEventListener("pointerleave", release);
+    return () => {
+      el.removeEventListener("pointerdown", press);
+      el.removeEventListener("pointerup", release);
+      el.removeEventListener("pointercancel", release);
+      el.removeEventListener("pointerleave", release);
+    };
+  }, [active]);
+
   return ref;
 }
 
@@ -121,10 +148,10 @@ export function Widget({ title, children, className = "", href, depth = false }:
     </div>
   );
 
-  // Наклон и нажатие делят одно и то же свойство `transform` — формула
-  // обоих целиком живёт в `.tilt` (globals.css), поэтому здесь Tailwind-у
-  // не остаётся управлять `transform` самому: `active:scale` тут больше
-  // не нужен, о нажатии заботится `.tilt:active`.
+  // Наклон и нажатие делят одно и то же свойство `transform`/`scale` —
+  // формула обоих целиком живёт в `.tilt`/`.tilt.is-pressed` (globals.css),
+  // а переключает класс уже сам `useTilt` выше — Tailwind-у здесь не
+  // остаётся управлять ни тем, ни другим самому.
   const classes = `glass tilt ${depth ? "glass-deep" : ""} flex flex-col rounded-[1.55rem] p-[1.05rem] ${className}`;
 
   if (href) {
@@ -216,8 +243,8 @@ export function WidgetButton({
       // Прозрачность самой карточки не трогаем ни при каком состоянии:
       // у стекла от неё пропадает размытие и оно возвращается рывком.
       // Гаснет только содержимое. Наклон и нажатие («подача под пальцем»)
-      // тоже здесь не прописаны Tailwind-ом — обе живут в `.tilt`
-      // (globals.css) через одну и ту же формулу transform.
+      // тоже здесь не прописаны Tailwind-ом — обе живут в `.tilt`/
+      // `.tilt.is-pressed` (globals.css), в `useTilt` выше.
       className={`glass tilt group flex w-full rounded-[1.55rem] p-[1.05rem] disabled:pointer-events-none ${layoutClasses} ${className}`}
     >
       {accent && (

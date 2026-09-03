@@ -64,14 +64,17 @@ export default function Screens({ home, sky, index, onChange, hidden = false }: 
 
   function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
     if (hidden) return;
-    // Нажатия по кнопкам не должны начинать свайп.
-    if ((e.target as HTMLElement).closest("button, a, input")) return;
+    // Только настоящие поля ввода не должны начинать свайп — жест внутри
+    // них должен остаться жестом выделения текста. Кнопки и ссылки больше
+    // не исключены: раскладка теперь почти целиком — виджеты-кнопки, и
+    // прежнее исключение оставляло свайпу лишь узкие щели между карточками.
+    // Разница между тапом и свайпом решается ниже, по `SLOP` и направлению
+    // движения, а не по тому, что оказалось под пальцем в момент касания.
+    if ((e.target as HTMLElement).closest("input, textarea, select")) return;
     startY.current = e.clientY;
     startX.current = e.clientX;
     owns.current = null;
     setDragging(true);
-    // Захват — чтобы палец, ушедший за пределы элемента, не обрывал жест.
-    e.currentTarget.setPointerCapture?.(e.pointerId);
   }
 
   function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
@@ -83,6 +86,10 @@ export default function Screens({ home, sky, index, onChange, hidden = false }: 
       if (Math.abs(dy) < SLOP && Math.abs(dx) < SLOP) return;
       owns.current = Math.abs(dy) > Math.abs(dx);
       if (!owns.current) return;
+      // Захватываем указатель только теперь, когда жест точно наш —
+      // короткий тап по кнопке до этой строки никогда не доходит, поэтому
+      // клик под пальцем срабатывает как обычно, без вмешательства свайпа.
+      e.currentTarget.setPointerCapture?.(e.pointerId);
     }
     if (!owns.current) return;
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { Widget } from "../ui/Widget";
-import { formatCivilShort, formatShortRuDate, weekRangeInTz } from "@/lib/time/days";
+import { formatShortRuDate, weekRangeInTz } from "@/lib/time/days";
 import { plural } from "@/lib/text/plural";
 import type { SeparationCounter } from "@/lib/time/useSeparationDays";
 import { useMemo } from "react";
@@ -25,13 +25,13 @@ const WEEKDAY_LABELS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
  * под ним убраны: секунды спорили за внимание с самим фактом, а не
  * поддерживали его.
  *
- * Вместо часов — календарная неделя (пн–вс, сегодня подсвечен), той же
- * визуальной массы и по той же трёхчастной структуре (визуализация →
- * опорные даты по краям → строка-подпись), что шкала расстояния в
- * соседнем виджете: пара должна читаться вместе, а не как два случайно
- * похожих по духу виджета. Это заодно убирает и пустоту, которая раньше
- * была между числом дней и тонкой нижней панелью, — календарь занимает
- * ровно тот вес, что и шкала рядом.
+ * Вместо часов — календарная неделя (пн–вс, сегодня подсвечен), в панели
+ * той же фиксированной высоты (`.trend-panel`), что и шкала расстояния
+ * в соседнем виджете, — поэтому «64 дня» и «1 754 км» стоят на одной
+ * линии при любом содержимом обеих панелей, а не только когда оно
+ * случайно совпало по длине. Даты начала и конца недели под календарём
+ * не подписаны отдельно: подсвеченная сегодняшняя буква уже говорит,
+ * какой это день, а числа рядом с ней ничего не добавляли, только шумели.
  *
  * Подпись внизу совмещает то же число дней словами («9 недель и 1 день»)
  * с датой начала («с 30 июня»): дата привязывает абстрактное число обратно
@@ -51,7 +51,7 @@ export default function TimerWidget({ counter, separationStartISO, tz, className
     () => formatShortRuDate(separationStartISO, tz),
     [separationStartISO, tz],
   );
-  const week = useMemo(
+  const { weekday } = useMemo(
     () => weekRangeInTz(new Date(), tz),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [tz, days],
@@ -65,17 +65,13 @@ export default function TimerWidget({ counter, separationStartISO, tz, className
           <span className="hero-unit">{plural(days, "день", "дня", "дней")}</span>
         </div>
 
-        <div className="inset-panel px-[0.85rem] py-[0.65rem]">
+        <div className="inset-panel trend-panel px-[0.85rem] py-[0.65rem]">
           <div className="week-row">
             {WEEKDAY_LABELS.map((label, i) => (
-              <span key={label} className={`week-cell${i + 1 === week.weekday ? " is-today" : ""}`}>
+              <span key={label} className={`week-cell${i + 1 === weekday ? " is-today" : ""}`}>
                 {label}
               </span>
             ))}
-          </div>
-          <div className="trend-endpoints">
-            <span>{formatCivilShort(week.monday)}</span>
-            <span>{formatCivilShort(week.sunday)}</span>
           </div>
           <div className="trend-caption-line">
             {weeks} {plural(weeks, "неделя", "недели", "недель")}
