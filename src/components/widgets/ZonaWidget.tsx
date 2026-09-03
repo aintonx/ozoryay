@@ -28,7 +28,7 @@ interface ZonaWidgetProps {
  * Вместо этого — несколько тускло-приглушённых полос вместо текста: тот
  * же приём, которым сама iOS прячет содержимое уведомления на
  * заблокированном экране, если в настройках выключен его показ. Поверх —
- * короткая подпись без экивоков: «Она откроется позже».
+ * короткая подпись без экивоков: «Откроется позже».
  */
 export default function ZonaWidget({ className = "" }: ZonaWidgetProps) {
   const tiltRef = useTilt(true, TILT_MAX_DEG_DEEP / TILT_MAX_DEG);
@@ -36,10 +36,10 @@ export default function ZonaWidget({ className = "" }: ZonaWidgetProps) {
   return (
     <div
       ref={tiltRef as Ref<HTMLDivElement>}
-      className={`glass glass-deep tilt flex min-h-[7.4rem] w-full flex-col rounded-[1.55rem] p-[1.05rem] ${className}`}
+      className={`glass glass-deep tilt flex min-h-[7.4rem] w-full min-w-0 flex-col rounded-[1.55rem] p-[1.05rem] ${className}`}
     >
       <div className="mb-[0.6rem] font-system text-[13px] font-semibold tracking-[0.04em] text-amber/85">
-        Зона
+        ЗОНА
       </div>
 
       <div className="flex flex-1 flex-col items-center justify-center gap-[0.8rem]">
@@ -49,7 +49,7 @@ export default function ZonaWidget({ className = "" }: ZonaWidgetProps) {
           <span className="h-[0.55rem] w-[50%] rounded-full bg-star/16" />
         </div>
         <span className="font-system text-[13.5px] font-medium text-amber-hot/85">
-          Она откроется позже
+          Откроется позже
         </span>
       </div>
     </div>

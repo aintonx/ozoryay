@@ -4,22 +4,6 @@ import { Widget } from "../ui/Widget";
 import { spaceThousands } from "@/lib/text/plural";
 
 /**
- * Шестнадцать румбов компаса на русском — для перевода азимута маршрута
- * в слово, которое читается сразу, без пересчёта из градусов в голове.
- */
-const COMPASS_POINTS = [
-  "С", "ССВ", "СВ", "ВСВ", "В", "ВЮВ", "ЮВ", "ЮЮВ",
-  "Ю", "ЮЮЗ", "ЮЗ", "ЗЮЗ", "З", "ЗСЗ", "СЗ", "ССЗ",
-];
-
-/** Азимут (градусы от севера по часовой) → ближайший из шестнадцати румбов. */
-function compassLabel(deg: number): string {
-  const normalized = ((deg % 360) + 360) % 360;
-  const index = Math.round(normalized / 22.5) % COMPASS_POINTS.length;
-  return COMPASS_POINTS[index];
-}
-
-/**
  * Условный потолок шкалы — не настоящий предел расстояния (предела в
  * принципе нет), а масштаб, при котором реалистичные значения не упираются
  * в самый край полосы и не теряются у нуля.
@@ -30,7 +14,13 @@ interface DistanceWidgetProps {
   distanceKm: number;
   myCity: string;
   herCity: string;
-  /** Начальный азимут большого круга от меня к ней, в градусах от севера. */
+  /**
+   * Начальный азимут большого круга от меня к ней, в градусах от севера.
+   * Сейчас не используется здесь — слово-румб («ЮЮВ») убрано из подписи
+   * как лишнее рядом с городами. Проп оставлен как есть — `HomeScreen`
+   * продолжает передавать его без изменений, — чтобы вернуть азимут
+   * в подпись можно было одной строкой прямо в этом файле.
+   */
   bearingDeg: number;
   className?: string;
 }
@@ -45,14 +35,14 @@ interface DistanceWidgetProps {
  * «1 754 км» и «64 дня» стоят на одной линии при любом содержимом обеих
  * панелей, а не только когда оно случайно совпало по длине.
  *
- * Азимут словом («ЮЮВ») и города никуда не делись — просто переехали
- * в подпись под шкалой вместо отдельного циферблата со стрелкой.
+ * Города остались в подписи под шкалой; слово-румб («ЮЮВ») рядом с ними
+ * убрано — с самим маршрутом оно ничего не добавляло, только удлиняло
+ * строку.
  */
 export default function DistanceWidget({
   distanceKm,
   myCity,
   herCity,
-  bearingDeg,
   className,
 }: DistanceWidgetProps) {
   const pct = Math.min(100, Math.max(0, (distanceKm / SCALE_MAX_KM) * 100));
@@ -76,7 +66,7 @@ export default function DistanceWidget({
             <span>{SCALE_MAX_KM} км</span>
           </div>
           <div className="trend-caption-line">
-            {compassLabel(bearingDeg)} · {myCity} → {herCity}
+            {myCity} → {herCity}
           </div>
         </div>
       </div>

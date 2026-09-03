@@ -152,7 +152,7 @@ export function Widget({ title, children, className = "", href, depth = false }:
   // формула обоих целиком живёт в `.tilt`/`.tilt.is-pressed` (globals.css),
   // а переключает класс уже сам `useTilt` выше — Tailwind-у здесь не
   // остаётся управлять ни тем, ни другим самому.
-  const classes = `glass tilt ${depth ? "glass-deep" : ""} flex flex-col rounded-[1.55rem] p-[1.05rem] ${className}`;
+  const classes = `glass tilt ${depth ? "glass-deep" : ""} flex min-w-0 flex-col rounded-[1.55rem] p-[1.05rem] ${className}`;
 
   if (href) {
     return (
@@ -225,9 +225,13 @@ export function WidgetButton({
       : "items-center gap-[0.9rem] text-left";
 
   const accentWrapClasses = layout === "tile" ? "h-[2.6rem] w-[2.6rem]" : "h-[2.4rem] w-[2.4rem] shrink-0";
-  const labelClasses = layout === "tile" ? "text-[17px]" : "text-[16px]";
-  const hintClasses = "text-[13.5px]";
-  const textWrapClasses = layout === "row" ? "flex-1" : "";
+  // `row` — заголовки экрана неба длиннее тех, что были в расчёте, когда
+  // размер задавался («Созвездие Вечного Смеха», «то, что мы правда
+  // сказали») — при 16/13.5px карточка раздувалась по высоте только от
+  // переноса строк. `tile` (домашний экран) остаётся как был.
+  const labelClasses = layout === "tile" ? "text-[17px]" : "text-[14.5px]";
+  const hintClasses = layout === "tile" ? "text-[13.5px]" : "text-[12px]";
+  const textWrapClasses = layout === "row" ? "min-w-0 flex-1" : "";
 
   return (
     <button
@@ -245,7 +249,7 @@ export function WidgetButton({
       // Гаснет только содержимое. Наклон и нажатие («подача под пальцем»)
       // тоже здесь не прописаны Tailwind-ом — обе живут в `.tilt`/
       // `.tilt.is-pressed` (globals.css), в `useTilt` выше.
-      className={`glass tilt group flex w-full rounded-[1.55rem] p-[1.05rem] disabled:pointer-events-none ${layoutClasses} ${className}`}
+      className={`glass tilt group flex w-full min-w-0 rounded-[1.55rem] p-[1.05rem] disabled:pointer-events-none ${layoutClasses} ${className}`}
     >
       {accent && (
         <span className={`relative flex shrink-0 items-center justify-center transition-opacity duration-300 group-disabled:opacity-40 ${accentWrapClasses}`}>
