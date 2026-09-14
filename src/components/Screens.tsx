@@ -28,6 +28,27 @@ const RUBBER = 0.42;
 /** Пока жест короче этого, не решаем, наш он или чужой. */
 const SLOP = 5;
 
+/**
+ * Порог для колеса мыши/тачпада, в пикселях `deltaY`, после которого жест
+ * считается намеренным переходом между экранами, — свой, отдельный от
+ * `THRESHOLD` пальца: колесо мыши отдаёт куда более крупные и редкие
+ * значения за одно движение, чем палец на сенсорном экране.
+ */
+const WHEEL_THRESHOLD = 60;
+/**
+ * Пауза после сработавшего перехода: одно колёсико/один свайп по тачпаду
+ * должны переключить экран ровно один раз, а не несколько подряд, пока
+ * рука ещё не оторвалась от мыши. Примерно равна времени самого перехода
+ * (см. `EASE` ниже).
+ */
+const WHEEL_COOLDOWN = 650;
+/**
+ * Если колесо молчит дольше этого — накопленное смещение обнуляется: две
+ * короткие, разнесённые по времени прокрутки не должны складываться в один
+ * жест, как будто их и не разделяла пауза.
+ */
+const WHEEL_IDLE_RESET = 220;
+
 const EASE = "transform 620ms cubic-bezier(0.32, 0.72, 0, 1)";
 
 /**
@@ -61,6 +82,54 @@ export default function Screens({ home, sky, index, onChange, hidden = false }: 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onChange]);
+
+  /*
+   * Колесо мыши/тачпад как ещё один способ сделать тот же жест, что и палец:
+   * попытка прокрутить страницу на десктопе раньше ни к чему не приводила —
+   * страницу и так никуда не проскроллить (см. `overflow: hidden` на body
+   * в globals.css), поэтому колесо просто ничего не делало, и переключить
+   * экран можно было только кнопкой. Здесь оно ведёт себя как палец: одно
+   * уверенное движение — один переход, без анимации внутри самого жеста
+   * (та же логика, что и в свайпе выше), только порог и охлаждение свои,
+   * под масштаб событий колеса, а не касания.
+   */
+  useEffect(() => {
+    if (hidden) return;
+    let cooling = false;
+    let acc = 0;
+    let idleTimer: number | undefined;
+
+    const onWheel = (e: WheelEvent) => {
+      // Pinch-to-zoom на трекпаде тоже приходит как wheel с зажатым Ctrl —
+      // это жест масштабирования, а не пролистывания, трогать его нельзя.
+      if (e.ctrlKey || cooling) return;
+
+      if (Math.sign(e.deltaY) !== Math.sign(acc)) acc = 0;
+      acc += e.deltaY;
+      window.clearTimeout(idleTimer);
+      idleTimer = window.setTimeout(() => {
+        acc = 0;
+      }, WHEEL_IDLE_RESET);
+
+      if (Math.abs(acc) < WHEEL_THRESHOLD) return;
+
+      const next: ScreenIndex = acc > 0 ? 1 : 0;
+      acc = 0;
+      if (next === index) return;
+
+      cooling = true;
+      onChange(next);
+      window.setTimeout(() => {
+        cooling = false;
+      }, WHEEL_COOLDOWN);
+    };
+
+    window.addEventListener("wheel", onWheel, { passive: true });
+    return () => {
+      window.removeEventListener("wheel", onWheel);
+      window.clearTimeout(idleTimer);
+    };
+  }, [index, onChange, hidden]);
 
   function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
     if (hidden) return;

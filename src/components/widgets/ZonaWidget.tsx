@@ -38,7 +38,7 @@ export default function ZonaWidget({ className = "" }: ZonaWidgetProps) {
       ref={tiltRef as Ref<HTMLDivElement>}
       className={`glass glass-deep tilt flex min-h-[7.4rem] w-full min-w-0 flex-col rounded-[1.55rem] p-[1.05rem] ${className}`}
     >
-      <div className="mb-[0.6rem] font-system text-[13px] font-semibold tracking-[0.04em] text-amber/85">
+      <div className="mb-[0.6rem] text-center font-system text-[13px] font-semibold tracking-[0.04em] text-amber/85">
         ЗОНА
       </div>
 
@@ -48,7 +48,7 @@ export default function ZonaWidget({ className = "" }: ZonaWidgetProps) {
           <span className="h-[0.55rem] w-[90%] rounded-full bg-star/16" />
           <span className="h-[0.55rem] w-[50%] rounded-full bg-star/16" />
         </div>
-        <span className="font-system text-[13.5px] font-medium text-amber-hot/85">
+        <span className="font-system text-[13.5px] font-medium text-star/90">
           Откроется позже
         </span>
       </div>

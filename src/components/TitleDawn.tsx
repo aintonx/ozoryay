@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { glowXFromBearing, groundYAt } from "@/lib/sky/layout";
 import { IconChevronUp } from "./ui/Icons";
+import { SWIPE_HINT_ARROW_SIZE } from "./ui/SwipeHintArrow";
 import { useReducedMotion } from "@/lib/useReducedMotion";
 
 const FULL_MS = 10200; // подъём + 5с + уход, с запасом на снятие
@@ -111,7 +112,16 @@ export default function TitleDawn({ bearingDeg, onLeave, onDone }: TitleDawnProp
     >
       <div style={{ clipPath: skyClip, WebkitClipPath: skyClip }} className="absolute inset-0">
         <div
-          className="absolute left-1/2 w-full max-w-[36rem] -translate-x-1/2 px-7"
+          // На телефоне 36rem с запасом: строка на узком экране и так ложится
+          // в две строки («Ты озоряешь мою» / «жизнь, принцесса»), с воздухом
+          // по бокам. На широком окне при том же 36rem вторая строка почти
+          // упиралась в правый край и переносила «принцесса» на третью
+          // строку — та уже не помещалась в отведённую по высоте область
+          // над линией холмов и обрезалась маской неба. Более широкая
+          // колонка на десктопе (см. `WIDE_QUERY` в `HomeScreen` — тот же
+          // брейкпоинт 640px) убирает третью строку, не трогая мобильную
+          // раскладку.
+          className="absolute left-1/2 w-full max-w-[36rem] -translate-x-1/2 px-7 sm:max-w-[44rem]"
           style={{ top: `${(sunY - 0.215) * 100}%` }}
         >
           <h1
@@ -138,7 +148,7 @@ export default function TitleDawn({ bearingDeg, onLeave, onDone }: TitleDawnProp
         className="font-system caption absolute inset-x-0 bottom-[max(2rem,env(safe-area-inset-bottom))] flex flex-col items-center gap-[0.3em] text-[12px] font-medium tracking-[0.05em] text-star transition-opacity duration-700"
         style={{ opacity: hint && !leaving ? 1 : 0 }}
       >
-        <IconChevronUp size={14} />
+        <IconChevronUp size={SWIPE_HINT_ARROW_SIZE} />
         смахни
       </div>
     </div>

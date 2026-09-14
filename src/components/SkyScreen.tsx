@@ -1,7 +1,7 @@
 "use client";
 
 import { WidgetButton } from "./ui/Widget";
-import { IconChevronUp } from "./ui/Icons";
+import { SwipeHintArrow } from "./ui/SwipeHintArrow";
 
 export type SparkKind = "memory" | "dialog" | "letter" | "laugh";
 
@@ -80,18 +80,13 @@ function LetterIcon() {
 export default function SkyScreen({ onSpark, hint, onBack }: SkyScreenProps) {
   return (
     <div className="pointer-events-none flex h-full w-full flex-col px-[1.15rem] pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))]">
-      {/* Дорога назад: тот же жест, что привёл сюда, только в другую сторону. */}
-      <button
-        type="button"
-        onClick={(e) => {
-          if (e.detail > 0) e.currentTarget.blur();
-          onBack();
-        }}
-        className="font-system caption pointer-events-auto mx-auto flex items-center gap-[0.4em] text-[12px] font-medium tracking-[0.05em] text-star transition-opacity duration-300 hover:opacity-80"
-      >
-        <IconChevronUp size={13} className="rotate-180" />
-        смахни вниз
-      </button>
+      {/*
+        Дорога назад: тот же жест, что привёл сюда, только в другую сторону.
+        Раньше здесь стоял текст («смахни вниз») — на этом экране его убрали
+        по прямому запросу, как и на главном: осталась только стрелка,
+        которая сама дышит и покачивается вниз (см. `SwipeHintArrow`).
+      */}
+      <SwipeHintArrow direction="down" onClick={onBack} className="pointer-events-auto" />
 
       <div className="flex-1" />
 

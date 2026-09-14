@@ -1,15 +1,13 @@
 "use client";
 
 import { Widget } from "../ui/Widget";
-import { formatShortRuDate, weekRangeInTz } from "@/lib/time/days";
+import { weekRangeInTz } from "@/lib/time/days";
 import { plural } from "@/lib/text/plural";
 import type { SeparationCounter } from "@/lib/time/useSeparationDays";
 import { useMemo } from "react";
 
 interface TimerWidgetProps {
   counter: SeparationCounter;
-  /** Момент расставания — ISO-строка из настроек, для подписи «с 30 июня». */
-  separationStartISO: string;
   /** Её пояс: та же система координат, в которой считаются сами дни. */
   tz: string;
   className?: string;
@@ -33,24 +31,21 @@ const WEEKDAY_LABELS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
  * не подписаны отдельно: подсвеченная сегодняшняя буква уже говорит,
  * какой это день, а числа рядом с ней ничего не добавляли, только шумели.
  *
- * Подпись внизу совмещает то же число дней словами («9 недель и 1 день»)
- * с датой начала («с 30 июня»): дата привязывает абстрактное число обратно
- * к конкретному дню в календаре, а слова переводят его в единицы, которые
- * проще держать в голове, чем сразу три цифры подряд.
+ * Подпись внизу переводит то же число дней в единицы, которые проще
+ * держать в голове, чем счёт сразу на два-три знака («9 недель и 1 день»).
+ * Дата начала («с 30 июня») здесь раньше стояла следом — убрана по
+ * прямому запросу: сама неделя выше уже календарная, а числу дней не
+ * нужен второй якорь к конкретному дню, кроме своих же недель и дней.
  */
-export default function TimerWidget({ counter, separationStartISO, tz, className }: TimerWidgetProps) {
+export default function TimerWidget({ counter, tz, className }: TimerWidgetProps) {
   const { days } = counter;
   const weeks = Math.floor(days / 7);
   const restDays = days % 7;
 
-  // Дата и неделя пересчитываются только когда меняются входные данные
-  // или сам день (`days` от тикающего счётчика меняется ровно раз в сутки
-  // в её поясе) — не на каждый секундный тик: Intl.DateTimeFormat не
-  // бесплатен, а результат всё равно не меняется чаще.
-  const sinceLabel = useMemo(
-    () => formatShortRuDate(separationStartISO, tz),
-    [separationStartISO, tz],
-  );
+  // Неделя пересчитывается только когда меняются входные данные или сам
+  // день (`days` от тикающего счётчика меняется ровно раз в сутки в её
+  // поясе) — не на каждый секундный тик: Intl.DateTimeFormat не бесплатен,
+  // а результат всё равно не меняется чаще.
   const { weekday } = useMemo(
     () => weekRangeInTz(new Date(), tz),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -75,7 +70,7 @@ export default function TimerWidget({ counter, separationStartISO, tz, className
           </div>
           <div className="trend-caption-line">
             {weeks} {plural(weeks, "неделя", "недели", "недель")}
-            {restDays > 0 && ` и ${restDays} ${plural(restDays, "день", "дня", "дней")}`} · с {sinceLabel}
+            {restDays > 0 && ` и ${restDays} ${plural(restDays, "день", "дня", "дней")}`}
           </div>
         </div>
       </div>

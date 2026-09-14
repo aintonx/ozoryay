@@ -143,7 +143,7 @@ export function Widget({ title, children, className = "", href, depth = false }:
   const tiltRef = useTilt(true, depth ? TILT_MAX_DEG_DEEP / TILT_MAX_DEG : 1);
 
   const header = title && (
-    <div className="mb-[0.6rem] font-system text-[13px] font-semibold tracking-[0.04em] text-amber/85">
+    <div className="mb-[0.6rem] text-center font-system text-[13px] font-semibold tracking-[0.04em] text-amber/85">
       {title}
     </div>
   );

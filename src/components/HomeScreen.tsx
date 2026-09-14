@@ -14,7 +14,7 @@ import FollowersWidget from "./widgets/FollowersWidget";
 import ZonaWidget from "./widgets/ZonaWidget";
 import { useFollowers } from "@/lib/useFollowers";
 import { WidgetButton } from "./ui/Widget";
-import { IconChevronUp } from "./ui/Icons";
+import { SwipeHintArrow } from "./ui/SwipeHintArrow";
 import type { Settings } from "@/lib/defaults";
 import type { SeparationCounter } from "@/lib/time/useSeparationDays";
 
@@ -57,13 +57,16 @@ function KissAccent({ inFlight }: { inFlight: boolean }) {
 /**
  * Акцент «Неба» — иконка из вложения (звезда со вспышкой), в тех же двух
  * тонах, что и весь остальной сайт: приглушённый контур — цветом звёзд,
- * яркая искра внутри — тёплым акцентом. Единого размера с «Поцелуем»
- * рядом — те же `h-[1.85rem] w-[1.85rem]`, оба квадрата акцентов сами
- * по себе уже одного размера через `accentWrapClasses` в `WidgetButton`.
+ * яркая искра внутри — тёплым акцентом. Крупнее «Поцелуя» рядом на 20%
+ * (`2.22rem` против `1.85rem`) — по прямому запросу: раньше оба акцента
+ * были одного размера, теперь это сознательное расхождение именно здесь.
+ * Квадрат-обёртка вокруг остаётся тем же (`accentWrapClasses` в
+ * `WidgetButton`, `2.6rem`), поэтому увеличенная иконка по-прежнему
+ * помещается в него, не задевая края.
  */
 function SkyAccent() {
   return (
-    <svg viewBox="0 0 24 24" fill="none" className="h-[1.85rem] w-[1.85rem]" aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" className="h-[2.22rem] w-[2.22rem]" aria-hidden="true">
       <path
         opacity="0.5"
         fillRule="evenodd"
@@ -203,11 +206,7 @@ export default function HomeScreen({
             визуальная ширина остаётся той же, что у кнопок на экране неба.
           */}
           <div className="grid grid-cols-2 gap-[0.7rem]">
-            <TimerWidget
-              counter={counter}
-              separationStartISO={settings.separationStart}
-              tz={settings.herTimezone}
-            />
+            <TimerWidget counter={counter} tz={settings.herTimezone} />
             <DistanceWidget
               distanceKm={settings.distanceKm}
               myCity={settings.myCity}
@@ -249,18 +248,17 @@ export default function HomeScreen({
         Здесь у неё всегда своё, гарантированное место внизу экрана — сама
         сетка выше ужимается уже под то, что осталось за вычетом этой строки,
         а не наоборот.
+
+        Раньше здесь стоял текст («смахни вверх») — на главном экране его
+        убрали по прямому запросу: осталась только стрелка, которая сама
+        дышит и покачивается вверх (см. `SwipeHintArrow`). Клик по ней
+        по-прежнему открывает небо, как и раньше.
       */}
-      <button
-        type="button"
-        onClick={(e) => {
-          if (e.detail > 0) e.currentTarget.blur();
-          onOpenSky();
-        }}
-        className="font-system caption z-[1] mx-auto mb-[max(0.85rem,env(safe-area-inset-bottom))] flex shrink-0 items-center gap-[0.4em] text-[12px] font-medium tracking-[0.05em] text-star transition-opacity duration-300 hover:opacity-80"
-      >
-        <IconChevronUp size={13} />
-        смахни вверх
-      </button>
+      <SwipeHintArrow
+        direction="up"
+        onClick={onOpenSky}
+        className="mb-[max(0.4rem,env(safe-area-inset-bottom))]"
+      />
     </div>
   );
 }
