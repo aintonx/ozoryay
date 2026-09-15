@@ -252,11 +252,17 @@ export default function Screens({ home, sky, index, onChange, hidden = false }: 
   const homeOffset = index === 0 ? drag : screenHeight ? -screenHeight + drag : "-100%";
   const skyOffset = index === 1 ? drag : screenHeight ? screenHeight + drag : "100%";
 
+  // `height: 100dvh` в style ниже — не дублирование `inset-0`. У `position:
+  // fixed` с одним только `inset: 0` не гарантирована настоящая динамическая
+  // высота на iOS Safari (см. правку `html`/`body` в globals.css — тот же
+  // сюжет, тот же зазор внизу экрана, если пропустить этот слой). Число
+  // должно быть явным и здесь, а не только выше по дереву.
   return (
     <div
       ref={rootRef}
       className="fixed inset-0 z-10 overflow-hidden"
       style={{
+        height: "100dvh",
         touchAction: "none",
         transform: hidden ? "translate3d(0, 100%, 0)" : "translate3d(0, 0, 0)",
         transition: EASE,
