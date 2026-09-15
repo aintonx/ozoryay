@@ -50,15 +50,26 @@ export default function FollowersWidget({ data, className }: FollowersWidgetProp
   const heights = sparkHeights(data.history);
 
   return (
-    <Widget title="ТЫ ВОСХИЩАЕШЬ" href={PROFILE_URL} className={className}>
-      <div className="flex flex-1 flex-col justify-between gap-[0.85rem]">
-        <div className="flex flex-1 flex-col items-center justify-center gap-[0.15rem] py-[0.4rem]">
-          <span className="hero-number">{spaceThousands(count)}</span>
+    <Widget title="ТЫ ВОСХИЩАЕШЬ" href={PROFILE_URL} className={`min-h-[9.6rem] ${className}`}>
+      <div className="flex flex-1 flex-col justify-between gap-[0.35rem]">
+        <div className="flex flex-1 flex-col items-center justify-center gap-[0.15rem]">
+          {/*
+            Своя, чуть меньшая цифра, а не общий `.hero-number` (3.65rem,
+            как у «БЕЗ ТЕБЯ»/«МЕЖДУ НАМИ»): эта карточка теперь той же
+            высоты, что «ЗОНА» и кнопки экрана неба рядом (см. `min-h-`
+            выше и `ZonaWidget`), а число подписчиков и так не главное
+            число сайта — счётчик разлуки выше остаётся самым крупным.
+            Инлайновый `style`, а не изменение `.hero-number`: тот класс
+            общий с двумя другими виджетами, трогать его здесь нельзя.
+          */}
+          <span className="hero-number" style={{ fontSize: "2.6rem" }}>
+            {spaceThousands(count)}
+          </span>
           <span className="hero-unit">{plural(count, "человек", "человека", "человек")}</span>
         </div>
 
         {heights.length > 0 && (
-          <div className="inset-panel px-[0.85rem] py-[0.65rem]">
+          <div className="inset-panel px-[0.85rem] py-[0.4rem]">
             <div className="trend-row">
               {heights.map((h, i) => (
                 <div

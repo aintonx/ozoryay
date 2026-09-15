@@ -36,7 +36,7 @@ export default function ZonaWidget({ className = "" }: ZonaWidgetProps) {
   return (
     <div
       ref={tiltRef as Ref<HTMLDivElement>}
-      className={`glass glass-deep tilt flex min-h-[7.4rem] w-full min-w-0 flex-col rounded-[1.55rem] p-[1.05rem] ${className}`}
+      className={`glass glass-deep tilt flex min-h-[9.6rem] w-full min-w-0 flex-col rounded-[1.55rem] p-[1.05rem] ${className}`}
     >
       <div className="mb-[0.6rem] text-center font-system text-[13px] font-semibold tracking-[0.04em] text-amber/85">
         ЗОНА
@@ -48,7 +48,15 @@ export default function ZonaWidget({ className = "" }: ZonaWidgetProps) {
           <span className="h-[0.55rem] w-[90%] rounded-full bg-star/16" />
           <span className="h-[0.55rem] w-[50%] rounded-full bg-star/16" />
         </div>
-        <span className="font-system text-[13.5px] font-medium text-star/90">
+        {/*
+          Тот же стиль, что у подписи под «Отправить поцелуй» и «Взгляни
+          на небо» (`hint` в `WidgetButton`, layout=tile): тот же размер,
+          тот же вес (обычный, не medium) и та же плотная строка
+          (`leading-snug`). Цвет — по-прежнему `text-star/90`, не общий
+          с теми подписями `text-star/60`: это отдельная, более ранняя
+          правка («сделать белым»), которую эта задача не отменяла.
+        */}
+        <span className="font-system text-[13.5px] leading-snug text-star/90">
           Откроется позже
         </span>
       </div>

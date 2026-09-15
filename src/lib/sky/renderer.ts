@@ -456,13 +456,10 @@ export function createSky(canvas: HTMLCanvasElement, initial: SkyOptions): SkyHa
       if (!open.isEternal) drawLetterStar(ctx, w, h, open, t, opts, 1 + eased * 0.9);
     }
 
-    // Вечная звезда — последней. Она не гаснет не по условию в коде,
-    // а потому что рисуется поверх всего, что могло бы её притушить —
-    // и это единственная звезда на сайте, для которой это по-прежнему
-    // так: лампа, оставленная включённой, не должна мигать вместе
-    // с остальным небом (см. `drawEternalStar` выше и её приметы
-    // в контексте задачи — свет для той, кто боится темноты).
-    drawEternalStar(ctx, w, h, t, opts.reducedMotion);
+    // Вечная звезда — последней. Не гаснет до конца, но теперь и не
+    // игнорирует заслонку совсем: см. `drawEternalStar` выше — почему
+    // именно частично, а не как у всех.
+    drawEternalStar(ctx, w, h, t, opts.reducedMotion, dim);
 
     raf = requestAnimationFrame(frame);
   }
@@ -695,8 +692,14 @@ function drawGlow(ctx: CanvasRenderingContext2D, w: number, h: number, xFrac: nu
 }
 
 /**
- * Вечная звезда. Горит всегда на полную — это не письмо, это лампа,
- * оставленная включённой. Дышит чуть заметно, чтобы читалась как живая.
+ * Вечная звезда. Не гаснет до конца — это не письмо, это лампа, оставленная
+ * включённой, — но и не игнорирует общую заслонку целиком: пусть еле
+ * заметно, но она тоже должна отзываться, когда гаснет остальное небо,
+ * иначе неопытному глазу кажется, что она просто зависла на полной яркости
+ * и забыта, а не горит специально. Пол — не ниже 65% от своей обычной силы:
+ * лампу можно притушить, но не выключить (см. `dim` в вызывающем `frame`
+ * и обсуждение задачи — эта звезда про её страх темноты, гасить её до
+ * конца было бы неверно). Дышит чуть заметно, чтобы читалась как живая.
  */
 function drawEternalStar(
   ctx: CanvasRenderingContext2D,
@@ -704,18 +707,21 @@ function drawEternalStar(
   h: number,
   t: number,
   reducedMotion: boolean,
+  dim: number,
 ) {
   const x = LAYOUT.eternalStar.x * w;
   const y = LAYOUT.eternalStar.y * h;
   const pulse = reducedMotion ? 1 : 1 + 0.04 * Math.sin((t / 6.5) * TAU);
   const r = Math.max(1.6, Math.min(w, h) * 0.0035);
   const halo = r * 13 * pulse;
+  const floor = 1 - clamp01(dim) * 0.35;
 
   const g = ctx.createRadialGradient(x, y, 0, x, y, halo);
   g.addColorStop(0, withAlpha(PALETTE.amberHot, 0.5));
   g.addColorStop(0.12, withAlpha(PALETTE.amber, 0.2));
   g.addColorStop(0.4, withAlpha(PALETTE.amber, 0.05));
   g.addColorStop(1, withAlpha(PALETTE.amber, 0));
+  ctx.globalAlpha = floor;
   ctx.fillStyle = g;
   ctx.fillRect(x - halo, y - halo, halo * 2, halo * 2);
 
@@ -723,6 +729,7 @@ function drawEternalStar(
   ctx.arc(x, y, r, 0, TAU);
   ctx.fillStyle = PALETTE.amberHot;
   ctx.fill();
+  ctx.globalAlpha = 1;
 }
 
 /**

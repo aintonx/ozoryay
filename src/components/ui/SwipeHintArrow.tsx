@@ -29,6 +29,15 @@ interface SwipeHintArrowProps {
  * Форма стрелки не меняется — тот же `IconChevronUp`, что был здесь и
  * раньше, — задача была только убрать подпись и увеличить и выровнять
  * размер, не рисовать новую иконку.
+ *
+ * Отступ вокруг иконки (`p-[0.55rem]`) — это зона нажатия, не сама
+ * стрелка: без него попасть пальцем было бы неудобно. Больше — уже
+ * раздувало высоту, которую резервирует под себя эта строка внизу
+ * главного экрана: `HomeScreen` меряет, сколько места осталось сетке
+ * виджетов, уже за вычетом этой строки, и слишком щедрый отступ здесь
+ * заметно ужимал сетку выше. Если снова понадобится увеличить зону
+ * нажатия — делать это с оглядкой на `fit()` в `HomeScreen`, не просто
+ * прибавляя падинг.
  */
 export function SwipeHintArrow({ direction, onClick, className = "" }: SwipeHintArrowProps) {
   return (
@@ -39,7 +48,7 @@ export function SwipeHintArrow({ direction, onClick, className = "" }: SwipeHint
         onClick();
       }}
       aria-label={direction === "up" ? "Смахнуть вверх, к небу" : "Смахнуть вниз, к виджетам"}
-      className={`swipe-hint-arrow swipe-hint-arrow--${direction} z-[1] mx-auto flex shrink-0 items-center justify-center p-[0.875rem] text-star transition-opacity duration-300 hover:opacity-80 ${className}`}
+      className={`swipe-hint-arrow swipe-hint-arrow--${direction} z-[1] mx-auto flex shrink-0 items-center justify-center p-[0.55rem] text-star transition-opacity duration-300 hover:opacity-80 ${className}`}
     >
       <IconChevronUp size={SWIPE_HINT_ARROW_SIZE} />
     </button>

@@ -31,6 +31,16 @@ const subscribeNever = () => () => {};
  * чем увидеть его цифры крупными.
  */
 const MIN_SCALE = 0.62;
+/**
+ * Выше этого не растим. Раньше сетка вообще никогда не росла крупнее
+ * своего исходного размера (`next` был либо ужатием, либо ровно `1`) —
+ * на невысоком экране это было незаметно, а на просторном превращалось
+ * в лишний воздух сверху и снизу: сетка стоит по центру блока меньше
+ * его самого, и весь остаток высоты уходит в поля, а не в сами виджеты.
+ * Потолок в 18% — то, что можно вырасти, оставаясь собой, а не «сетка
+ * пропорций телефона, растянутая на весь монитор».
+ */
+const MAX_SCALE = 1.18;
 const WIDE_QUERY = "(min-width: 640px)";
 
 /**
@@ -144,7 +154,12 @@ export default function HomeScreen({
     const rootFontSize = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
     const maxWidth = (window.matchMedia(WIDE_QUERY).matches ? 44 : 26) * rootFontSize;
     const nextWidth = Math.min(availableWidth, maxWidth);
-    const next = natural > available ? Math.max(MIN_SCALE, available / natural) : 1;
+    // Раньше здесь ужимали, только если не влезало (`natural > available`),
+    // а иначе оставляли ровно `1` — сетка меньше своего блока просто стояла
+    // по центру, и остаток высоты уходил в пустые поля сверху и снизу.
+    // Теперь тот же остаток идёт в сам масштаб: сетка растёт вместе
+    // с воздухом вокруг нeё, вплоть до `MAX_SCALE`, а не вместо него.
+    const next = natural > 0 ? Math.min(MAX_SCALE, Math.max(MIN_SCALE, available / natural)) : 1;
     setVisualWidth((prev) =>
       prev === null || Math.abs(prev - nextWidth) > 0.5 ? nextWidth : prev,
     );
