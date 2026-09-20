@@ -50,7 +50,7 @@ export default function FollowersWidget({ data, className }: FollowersWidgetProp
   const heights = sparkHeights(data.history);
 
   return (
-    <Widget title="ТЫ ВОСХИЩАЕШЬ" href={PROFILE_URL} className={`min-h-[13rem] ${className}`}>
+    <Widget title="ТЫ ВОСХИЩАЕШЬ" href={PROFILE_URL} className={`min-h-[14rem] ${className}`}>
       <div className="flex flex-1 flex-col justify-between gap-[0.85rem]">
         <div className="flex flex-1 flex-col items-center justify-center gap-[0.15rem] py-[0.4rem]">
           {/*
