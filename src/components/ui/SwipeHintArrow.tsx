@@ -1,6 +1,7 @@
 "use client";
 
 import { IconChevronUp } from "./Icons";
+import { useScreenAtRest } from "../Screens";
 
 /**
  * Единый размер стрелки-подсказки о свайпе — что здесь, что в заставке
@@ -32,12 +33,22 @@ interface SwipeHintArrowProps {
  * контент, путешествие к созвездию) — этот компонент их не трогает и не
  * заменяет.
  *
- * Стрелка стоит неподвижно — раньше она тихо дышала и покачивалась
+ * Сама стрелка стоит неподвижно — раньше она тихо дышала и покачивалась
  * (`hint-breathe-up`/`hint-breathe-down` в globals.css), анимация снята
  * по прямому запросу вместе с заменой формы на `IconChevronUp`. У стрелки
  * «вниз» направление по-прежнему держится поворотом на 180° — просто
  * теперь он статичный (`.swipe-hint-arrow--down svg` в globals.css), а не
  * часть анимации, которая эту стрелку заодно и покачивала.
+ *
+ * Видимость — не стоит на месте: оба экрана в `Screens` смонтированы
+ * одновременно и физически едут друг за другом весь переход (см. комментарий
+ * над `Screens`), а значит без этого обе стрелки — «вверх» с уезжающего
+ * экрана и «вниз» с приезжающего — были бы видны разом весь свайп и весь
+ * 620ms доезда после отпускания. `useScreenAtRest()` (контекст объявлен
+ * в `Screens.tsx`, там же вся логика, когда он `true`/`false`) говорит,
+ * устоялся ли сейчас экран; пока нет — стрелка гаснет по прозрачности,
+ * плавно, а не пропадает рывком, и не мешает тапу под пальцем, пока гаснет
+ * (`pointer-events: none` в `.swipe-hint-arrow--hidden`, globals.css).
  *
  * Отступ вокруг иконки (`p-[0.55rem]`) — это зона нажатия, не сама
  * стрелка: без него попасть пальцем было бы неудобно. Больше — уже
@@ -49,6 +60,7 @@ interface SwipeHintArrowProps {
  * прибавляя падинг.
  */
 export function SwipeHintArrow({ direction, onClick, className = "" }: SwipeHintArrowProps) {
+  const atRest = useScreenAtRest();
   return (
     <button
       type="button"
@@ -57,7 +69,7 @@ export function SwipeHintArrow({ direction, onClick, className = "" }: SwipeHint
         onClick();
       }}
       aria-label={direction === "up" ? "Смахнуть вверх, к небу" : "Смахнуть вниз, к виджетам"}
-      className={`swipe-hint-arrow swipe-hint-arrow--${direction} z-[1] mx-auto flex shrink-0 items-center justify-center p-[0.55rem] text-star transition-opacity duration-300 hover:opacity-80 ${className}`}
+      className={`swipe-hint-arrow swipe-hint-arrow--${direction} ${atRest ? "" : "swipe-hint-arrow--hidden"} z-[1] mx-auto flex shrink-0 items-center justify-center p-[0.55rem] text-star transition-opacity duration-300 hover:opacity-80 ${className}`}
     >
       <IconChevronUp size={SWIPE_HINT_ARROW_SIZE} />
     </button>
