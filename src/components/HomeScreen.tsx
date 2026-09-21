@@ -148,17 +148,6 @@ export default function HomeScreen({
   const [scale, setScale] = useState(1);
   const [wide, setWide] = useState(false);
   const [visualWidth, setVisualWidth] = useState<number | null>(null);
-  // ВРЕМЕННО — для диагностики пропадающих виджетов на конкретном устройстве
-  // автора задачи. Убрать вместе с оверлеем ниже (`{debug && (...)}`), как
-  // только цифры увидены и понятны. Не часть постоянной разметки сайта.
-  const [debug, setDebug] = useState<{
-    natural: number;
-    available: number;
-    scale: number;
-    boxClientHeight: number;
-    innerHeight: number;
-    dpr: number;
-  } | null>(null);
 
   const fit = useCallback(() => {
     const outer = box.current;
@@ -188,14 +177,6 @@ export default function HomeScreen({
       prev === null || Math.abs(prev - nextWidth) > 0.5 ? nextWidth : prev,
     );
     setScale((prev) => (Math.abs(prev - next) > 0.004 ? next : prev));
-    setDebug({
-      natural,
-      available,
-      scale: next,
-      boxClientHeight: outer.clientHeight,
-      innerHeight: window.innerHeight,
-      dpr: window.devicePixelRatio || 1,
-    });
   }, []);
 
   useLayoutEffect(() => {
@@ -232,30 +213,6 @@ export default function HomeScreen({
 
   return (
     <div className="flex h-full w-full flex-col">
-      {/* ВРЕМЕННО — см. комментарий у useState(debug) выше. Убрать этот блок
-          целиком вместе с тем useState и вызовом setDebug в fit(), как
-          только цифры на реальном устройстве увидены. */}
-      {debug && (
-        <div
-          style={{
-            position: "fixed",
-            top: "env(safe-area-inset-top, 0px)",
-            left: 0,
-            zIndex: 9999,
-            background: "rgba(0,0,0,0.8)",
-            color: "#5f5",
-            fontSize: "10px",
-            fontFamily: "monospace",
-            padding: "3px 6px",
-            lineHeight: 1.5,
-            pointerEvents: "none",
-            whiteSpace: "pre",
-          }}
-        >
-          {`natural=${debug.natural.toFixed(0)} available=${debug.available.toFixed(0)} scale=${debug.scale.toFixed(3)}
-box.clientHeight=${debug.boxClientHeight.toFixed(0)} innerHeight=${debug.innerHeight} dpr=${debug.dpr}`}
-        </div>
-      )}
       <div
         ref={box}
         className="flex min-h-0 flex-1 w-full items-end justify-center overflow-hidden px-[1.15rem] pt-[max(1.1rem,env(safe-area-inset-top))] pb-[0.4rem]"
@@ -306,7 +263,7 @@ box.clientHeight=${debug.boxClientHeight.toFixed(0)} innerHeight=${debug.innerHe
             и подъём взгляда в `Night`). Весь блок масштабируется по высоте, но
             визуальная ширина остаётся той же, что у кнопок на экране неба.
           */}
-          <div className="grid grid-cols-2 gap-[0.7rem] debug-grid-outline">
+          <div className="grid grid-cols-2 gap-[0.7rem]">
             <TimerWidget counter={counter} tz={settings.herTimezone} />
             <DistanceWidget
               distanceKm={settings.distanceKm}
