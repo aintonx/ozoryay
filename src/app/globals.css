@@ -396,7 +396,7 @@ body {
 
 .hero-unit {
   font-family: var(--font-system);
-  font-size: 15px;
+  font-size: 14px;
   color: rgba(201, 214, 240, 0.5);
 }
 
@@ -428,16 +428,15 @@ body {
  * краям → строка-подпись, три строки); календарь с двумя строками просто
  * центрируется в той же самой высоте, не растягиваясь под неё насильно.
  *
- * Высота НЕ выросла вместе с шрифтом подписей внутри (ниже) — нарочно:
- * панель зафиксирована и обрезана (`overflow: hidden`), а значит рост
- * шрифта внутри нeё не просачивается в `natural`-высоту всей сетки на
- * `HomeScreen` и не рискует запустить там компенсирующее сжатие всего
- * масштаба разом (см. подробный разбор в `Widget.tsx`, у `layoutClasses`).
- * Запас у исходных 4.65rem и так с лишним хватает на пару выросших на
- * 1–1.5px строк подписи — раздувать саму панель незачем.
+ * Высота чуть выросла (была 4.65rem) вместе с укрупнением шрифтов внутри
+ * панели: и чтобы подписям было просторнее, и чтобы у самих виджетов
+ * выросла собственная, «естественная» высота — именно так, через
+ * разметку самих виджетов, а не через общий масштаб сетки, полагается
+ * забирать пустой запас снизу главного экрана (см. `MAX_SCALE`
+ * и `fit()` в `HomeScreen`).
  */
 .trend-panel {
-  height: 4.65rem;
+  height: 5rem;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -449,7 +448,7 @@ body {
   justify-content: space-between;
   margin-top: 0.4rem;
   font-family: var(--font-system);
-  font-size: 11.5px;
+  font-size: 11px;
   color: rgba(201, 214, 240, 0.4);
 }
 
@@ -457,7 +456,7 @@ body {
   margin-top: 0.5rem;
   text-align: center;
   font-family: var(--font-system);
-  font-size: 13px;
+  font-size: 12.5px;
   color: rgba(201, 214, 240, 0.5);
 }
 
@@ -482,7 +481,7 @@ body {
   border-radius: 0.5rem;
   background: rgba(255, 255, 255, 0.05);
   font-family: var(--font-system);
-  font-size: 12.5px;
+  font-size: 11.5px;
   font-weight: 600;
   color: rgba(201, 214, 240, 0.42);
 }
@@ -619,21 +618,6 @@ body {
  */
 .swipe-hint-arrow--down svg {
   transform: rotate(180deg);
-}
-
-/*
- * Появление/исчезновение самой стрелки (не путать с поворотом выше) —
- * класс приходит из `atRest` (`useScreenAtRest`, контекст в `Screens.tsx`):
- * пока экран едет (жест или 620ms доезд после него), обе стрелки — «вверх»
- * с уезжающего экрана и «вниз» с приезжающего — иначе были бы видны разом
- * весь переход, потому что оба экрана в `Screens` смонтированы одновременно
- * и физически едут друг за другом. `transition-opacity duration-300` уже
- * стоит на самой кнопке (Tailwind-класс в `SwipeHintArrow.tsx`) — здесь
- * только конечное состояние, плавность даёт он.
- */
-.swipe-hint-arrow--hidden {
-  opacity: 0;
-  pointer-events: none;
 }
 
 @media (prefers-reduced-motion: reduce) {

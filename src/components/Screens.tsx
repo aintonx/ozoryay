@@ -1,15 +1,6 @@
 "use client";
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type ReactNode,
-} from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
 export type ScreenIndex = 0 | 1;
 
@@ -58,26 +49,7 @@ const WHEEL_COOLDOWN = 650;
  */
 const WHEEL_IDLE_RESET = 220;
 
-/** Длительность перехода, миллисекундами — используется и в CSS-строке
- *  `EASE` ниже (браузером), и в JS-таймере `beginTransition` (для стрелки-
- *  подсказки, см. `ScreenRestContext`) — одно число на оба синтаксиса,
- *  чтобы их не развело со временем в две разные цифры.
- */
-const EASE_MS = 620;
-const EASE = `transform ${EASE_MS}ms cubic-bezier(0.32, 0.72, 0, 1)`;
-
-/**
- * «Экран устоялся» — не идёт жест пальцем и не идёт переходная анимация
- * между экранами. Читает `SwipeHintArrow`: пока значение `false`, стрелка
- * прячется — иначе на середине перехода видно сразу обе, «вверх» с
- * уезжающего экрана и «вниз» с приезжающего, потому что оба физически
- * остаются в кадре весь слайд. По умолчанию `true` — если кто-то прочитает
- * этот контекст вне `Screens`, стрелка не спрячется без причины.
- */
-const ScreenRestContext = createContext(true);
-export function useScreenAtRest() {
-  return useContext(ScreenRestContext);
-}
+const EASE = "transform 620ms cubic-bezier(0.32, 0.72, 0, 1)";
 
 /**
  * Два экрана над одним небом.
@@ -136,40 +108,6 @@ export default function Screens({ home, sky, index, onChange, hidden = false }: 
   // Отдельный флаг вместо чтения рефа в рендере: пока палец на экране,
   // движение обязано идти без анимации, иначе оно отстаёт от пальца.
   const [dragging, setDragging] = useState(false);
-
-  /**
-   * Для стрелки-подсказки (`useScreenAtRest`, контекст объявлен выше файла):
-   * `swiping` — подтверждённый вертикальный жест уже идёт (после `SLOP`,
-   * см. `onPointerMove`), не сырой факт касания экрана — иначе обычный тап
-   * по самой стрелке или по любой другой кнопке на секунду прятал бы её
-   * же под пальцем. `transitioning` — идёт CSS-переход `EASE` (620ms):
-   * после отпускания жеста (доехал он или спружинил обратно) и после
-   * любой смены `index` не жестом (клик по стрелке, колесо, стрелки
-   * клавиатуры — везде см. соответствующие места ниже).
-   */
-  const [swiping, setSwiping] = useState(false);
-  const [transitioning, setTransitioning] = useState(false);
-  const settleTimer = useRef<number | undefined>(undefined);
-  const beginTransition = useCallback(() => {
-    setTransitioning(true);
-    window.clearTimeout(settleTimer.current);
-    settleTimer.current = window.setTimeout(() => setTransitioning(false), EASE_MS);
-  }, []);
-  useEffect(() => () => window.clearTimeout(settleTimer.current), []);
-
-  // Смена экрана не жестом — клик по стрелке, колесо, клавиатура — тоже
-  // запускает тот же самый 620ms-переход, просто без пальца на экране.
-  // Первый рендер этот эффект тоже видит (смена с "ничего" на исходный
-  // `index"), но по нему прятать стрелку не нужно — на входе ей положено
-  // быть сразу видимой, без обманчивого мигания.
-  const skippedFirstIndex = useRef(false);
-  useEffect(() => {
-    if (!skippedFirstIndex.current) {
-      skippedFirstIndex.current = true;
-      return;
-    }
-    beginTransition();
-  }, [index, beginTransition]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -256,7 +194,6 @@ export default function Screens({ home, sky, index, onChange, hidden = false }: 
       // короткий тап по кнопке до этой строки никогда не доходит, поэтому
       // клик под пальцем срабатывает как обычно, без вмешательства свайпа.
       e.currentTarget.setPointerCapture?.(e.pointerId);
-      setSwiping(true);
     }
     if (!owns.current) return;
 
@@ -285,13 +222,7 @@ export default function Screens({ home, sky, index, onChange, hidden = false }: 
     const finalDrag = pendingDrag.current;
     if (index === 0 && finalDrag < -THRESHOLD * RUBBER) onChange(1);
     if (index === 1 && finalDrag > THRESHOLD * RUBBER) onChange(0);
-    // Жест кончился — независимо от того, долистал он до смены экрана или
-    // сейчас спружинит обратно на месте (оба случая — один и тот же 620ms
-    // `EASE`-переход, просто в разные стороны), стрелке рано появляться
-    // снова: она ждёт `transitioning`, не только `swiping`.
-    if (owns.current) beginTransition();
     owns.current = null;
-    setSwiping(false);
     setDragging(false);
     setDrag(0);
     pendingDrag.current = 0;
@@ -326,56 +257,46 @@ export default function Screens({ home, sky, index, onChange, hidden = false }: 
   // высота на iOS Safari (см. правку `html`/`body` в globals.css — тот же
   // сюжет, тот же зазор внизу экрана, если пропустить этот слой). Число
   // должно быть явным и здесь, а не только выше по дереву.
-  //
-  // `!swiping`, не `!dragging`: `dragging` становится `true` уже на самом
-  // касании, до того как жест распознан как вертикальный (см. `SLOP` выше) —
-  // если прятать стрелку по нему, обычный тап по ней же самой на миг
-  // прятал бы её из-под пальца. `swiping` включается только после того,
-  // как жест подтверждён.
-  const atRest = !swiping && !transitioning;
-
   return (
-    <ScreenRestContext.Provider value={atRest}>
+    <div
+      ref={rootRef}
+      className="fixed inset-0 z-10 overflow-hidden"
+      style={{
+        height: "100dvh",
+        touchAction: "none",
+        transform: hidden ? "translate3d(0, 100%, 0)" : "translate3d(0, 0, 0)",
+        transition: EASE,
+      }}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
+    >
+      {/* Главный экран */}
       <div
-        ref={rootRef}
-        className="fixed inset-0 z-10 overflow-hidden"
+        className="absolute inset-0"
+        inert={index !== 0 || hidden}
         style={{
-          height: "100dvh",
-          touchAction: "none",
-          transform: hidden ? "translate3d(0, 100%, 0)" : "translate3d(0, 0, 0)",
-          transition: EASE,
+          transform: `translate3d(0, ${typeof homeOffset === "number" ? `${homeOffset}px` : homeOffset}, 0)`,
+          transition: dragging ? "none" : EASE,
+          willChange: "transform",
         }}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
       >
-        {/* Главный экран */}
-        <div
-          className="absolute inset-0"
-          inert={index !== 0 || hidden}
-          style={{
-            transform: `translate3d(0, ${typeof homeOffset === "number" ? `${homeOffset}px` : homeOffset}, 0)`,
-            transition: dragging ? "none" : EASE,
-            willChange: "transform",
-          }}
-        >
-          {home}
-        </div>
-
-        {/* Экран неба */}
-        <div
-          className="absolute inset-0"
-          inert={index !== 1 || hidden}
-          style={{
-            transform: `translate3d(0, ${typeof skyOffset === "number" ? `${skyOffset}px` : skyOffset}, 0)`,
-            transition: dragging ? "none" : EASE,
-            willChange: "transform",
-          }}
-        >
-          {sky}
-        </div>
+        {home}
       </div>
-    </ScreenRestContext.Provider>
+
+      {/* Экран неба */}
+      <div
+        className="absolute inset-0"
+        inert={index !== 1 || hidden}
+        style={{
+          transform: `translate3d(0, ${typeof skyOffset === "number" ? `${skyOffset}px` : skyOffset}, 0)`,
+          transition: dragging ? "none" : EASE,
+          willChange: "transform",
+        }}
+      >
+        {sky}
+      </div>
+    </div>
   );
 }
