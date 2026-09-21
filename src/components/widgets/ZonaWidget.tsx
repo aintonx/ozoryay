@@ -36,9 +36,9 @@ export default function ZonaWidget({ className = "" }: ZonaWidgetProps) {
   return (
     <div
       ref={tiltRef as Ref<HTMLDivElement>}
-      className={`glass glass-deep tilt flex min-h-[14rem] w-full min-w-0 flex-col rounded-[1.55rem] p-[1.05rem] ${className}`}
+      className={`glass glass-deep tilt flex min-h-[13rem] w-full min-w-0 flex-col rounded-[1.55rem] p-[1.05rem] ${className}`}
     >
-      <div className="mb-[0.6rem] text-center font-system text-[14px] font-semibold tracking-[0.04em] text-amber/85">
+      <div className="mb-[0.6rem] text-center font-system text-[13px] font-semibold tracking-[0.04em] text-amber/85">
         ЗОНА
       </div>
 
@@ -51,10 +51,10 @@ export default function ZonaWidget({ className = "" }: ZonaWidgetProps) {
         {/*
           Тот же шрифт и то же исполнение, что у подписи «он улетит ко мне»
           под «Отправить поцелуй» (`hint` в `WidgetButton`, layout=tile) —
-          полностью, включая цвет (`text-star/60`) и размер: если тот
-          вырастет, этот растёт вместе с ним.
+          полностью, включая цвет (`text-star/60`): более ранняя правка
+          «сделать белым» здесь отменена этим прямым запросом.
         */}
-        <span className="font-system text-[14.5px] leading-snug text-star/60">
+        <span className="font-system text-[13.5px] leading-snug text-star/60">
           Откроется позже
         </span>
       </div>
