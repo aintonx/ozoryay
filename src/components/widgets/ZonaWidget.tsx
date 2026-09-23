@@ -29,6 +29,18 @@ interface ZonaWidgetProps {
  * же приём, которым сама iOS прячет содержимое уведомления на
  * заблокированном экране, если в настройках выключен его показ. Поверх —
  * короткая подпись без экивоков: «Откроется позже».
+ *
+ * `min-h-[8rem]` — раньше было 13rem, для высоты вровень с «Ты
+ * восхищаешь». Содержимому самой «Зоны» (заголовок, три полоски-плейсхолдера,
+ * подпись) для этого нужно около 6.1rem — то есть почти 5rem из 13rem
+ * были чистым запасом ради выравнивания, а не ради содержимого. На
+ * экране автора задачи этот запас — часть причины, по которой сетка
+ * не помещалась целиком (`natural=925` при `available=576`, реальные
+ * цифры с его телефона). 8rem — с небольшим отступом над настоящей
+ * потребностью, не впритык. Если высоты вровень с «Ты восхищаешь» снова
+ * захочется — тогда правильнее растить не эту карточку под чужую, а
+ * прямо здесь задать `min-h-[13.5rem]` осознанно, зная цену в пикселях
+ * `natural`-высоты всей сетки.
  */
 export default function ZonaWidget({ className = "" }: ZonaWidgetProps) {
   const tiltRef = useTilt(true, TILT_MAX_DEG_DEEP / TILT_MAX_DEG);
@@ -36,9 +48,9 @@ export default function ZonaWidget({ className = "" }: ZonaWidgetProps) {
   return (
     <div
       ref={tiltRef as Ref<HTMLDivElement>}
-      className={`glass glass-deep tilt flex min-h-[13rem] w-full min-w-0 flex-col rounded-[1.55rem] p-[1.05rem] ${className}`}
+      className={`glass glass-deep tilt flex min-h-[8rem] w-full min-w-0 flex-col rounded-[1.55rem] p-[0.9rem] ${className}`}
     >
-      <div className="mb-[0.6rem] text-center font-system text-[13px] font-semibold tracking-[0.04em] text-amber/85">
+      <div className="mb-[0.6rem] text-center font-system text-[15px] font-semibold tracking-[0.04em] text-amber/85">
         ЗОНА
       </div>
 
@@ -51,10 +63,10 @@ export default function ZonaWidget({ className = "" }: ZonaWidgetProps) {
         {/*
           Тот же шрифт и то же исполнение, что у подписи «он улетит ко мне»
           под «Отправить поцелуй» (`hint` в `WidgetButton`, layout=tile) —
-          полностью, включая цвет (`text-star/60`): более ранняя правка
-          «сделать белым» здесь отменена этим прямым запросом.
+          полностью, включая цвет (`text-star/60`) и размер: если тот
+          вырастет, этот растёт вместе с ним.
         */}
-        <span className="font-system text-[13.5px] leading-snug text-star/60">
+        <span className="font-system text-[15px] leading-snug text-star/60">
           Откроется позже
         </span>
       </div>

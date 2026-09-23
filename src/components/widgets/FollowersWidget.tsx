@@ -51,8 +51,8 @@ export default function FollowersWidget({ data, className }: FollowersWidgetProp
 
   return (
     <Widget title="ТЫ ВОСХИЩАЕШЬ" href={PROFILE_URL} className={`min-h-[13rem] ${className}`}>
-      <div className="flex flex-1 flex-col justify-between gap-[0.85rem]">
-        <div className="flex flex-1 flex-col items-center justify-center gap-[0.15rem] py-[0.4rem]">
+      <div className="flex flex-1 flex-col justify-between gap-[0.7rem]">
+        <div className="flex flex-1 flex-col items-center justify-center gap-[0.15rem] py-[0.3rem]">
           {/*
             Снова общий `.hero-number` (3.65rem) — та же цифра, что у
             «БЕЗ ТЕБЯ»/«МЕЖДУ НАМИ»: раньше здесь стояла своя, уменьшенная,
@@ -68,7 +68,7 @@ export default function FollowersWidget({ data, className }: FollowersWidgetProp
         </div>
 
         {heights.length > 0 && (
-          <div className="inset-panel px-[0.85rem] py-[0.65rem]">
+          <div className="inset-panel px-[0.85rem] py-[0.5rem]">
             <div className="trend-row">
               {heights.map((h, i) => (
                 <div

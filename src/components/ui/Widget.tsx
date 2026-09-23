@@ -143,7 +143,7 @@ export function Widget({ title, children, className = "", href, depth = false }:
   const tiltRef = useTilt(true, depth ? TILT_MAX_DEG_DEEP / TILT_MAX_DEG : 1);
 
   const header = title && (
-    <div className="mb-[0.6rem] text-center font-system text-[13px] font-semibold tracking-[0.04em] text-amber/85">
+    <div className="mb-[0.6rem] text-center font-system text-[15px] font-semibold tracking-[0.04em] text-amber/85">
       {title}
     </div>
   );
@@ -152,7 +152,7 @@ export function Widget({ title, children, className = "", href, depth = false }:
   // формула обоих целиком живёт в `.tilt`/`.tilt.is-pressed` (globals.css),
   // а переключает класс уже сам `useTilt` выше — Tailwind-у здесь не
   // остаётся управлять ни тем, ни другим самому.
-  const classes = `glass tilt ${depth ? "glass-deep" : ""} flex min-w-0 flex-col rounded-[1.55rem] p-[1.05rem] ${className}`;
+  const classes = `glass tilt ${depth ? "glass-deep" : ""} flex min-w-0 flex-col rounded-[1.55rem] p-[0.9rem] ${className}`;
 
   if (href) {
     return (
@@ -220,30 +220,48 @@ export function WidgetButton({
   // плавающая высота заворачивается в бесконечный дребезг при переносе
   // строк.
   //
-  // 13rem — не с потолка: то же число, что у «Ты восхищаешь» и «Зоны»
-  // (они зафиксированы в своём пределе и больше не растут, см. эти
-  // виджеты). Раньше `tile` был на 9.6rem — самой невысокой карточкой
-  // на всём экране, заметно ниже остальных трёх. Теперь высота
-  // одинаковая у «Поцелуя», «Неба», «Ты восхищаешь» и «Зоны» — четыре
-  // карточки на одной линии по высоте, и только «Без тебя»/«Между нами»
-  // сверху остаются выше остальных как более насыщенная, «геройская»
-  // пара — сознательная иерархия, а не случайный разнобой. `justify-between`
-  // здесь же — иначе весь новый рост просто осел бы пустым полем под
-  // подписью: значок держится у верхнего края, подпись с текстом — у
-  // нижнего, а выросший запас между ними становится гибким зазором,
-  // а не мёртвым полем.
+  // 8.5rem — не 13rem, как было. Раньше здесь была история про то, что
+  // 13rem — то же число, что у «Ты восхищаешь»/«Зоны», для одной высоты
+  // у всех четырёх некрупных карточек. Это красиво звучало, но именно
+  // из-за этого числа сетка не помещалась на экране автора задачи —
+  // цифры прямо с его телефона: `natural=925`, `available=576`,
+  // `scale=0.623`, то есть больше трети высоты уходило в ужимание, а не
+  // в размер. Разбор по каждой карточке показал: у самого содержимого
+  // тайла (иконка 2.6rem + подпись + пояснение + падинг) естественная
+  // высота — около 8.1rem, и все 13rem − 8.1rem ≈ 5rem сверху были
+  // чистым запасом, которым ничего не пользовалось, кроме визуального
+  // равенства с «Зоной». Запас снят почти весь, с небольшим отступом
+  // (8.5rem, не 8.1rem) на случай, если подпись когда-нибудь станет
+  // на слово длиннее и перенесётся на вторую строку.
+  //
+  // Эта высота ВСЁ РАВНО не трогается ради укрупнения шрифта ниже
+  // (`labelClasses`/`hintClasses`) — `tile` по-прежнему зафиксирован
+  // и обрезан (`overflow-hidden`), и то, что растёт внутри него, наружу,
+  // в `natural`-высоту всей сетки на `HomeScreen`, всё так же не
+  // просачивается. Именно поэтому эта высота — самое безопасное место
+  // для срезания лишнего: она не может задеть шрифт ни в какую сторону,
+  // только собственный пустой запас карточки.
   const layoutClasses =
     layout === "tile"
-      ? "h-[13rem] flex-col items-start justify-between gap-[0.85rem] overflow-hidden text-left"
+      ? "h-[8.5rem] flex-col items-start justify-between gap-[0.6rem] overflow-hidden text-left"
       : "items-center gap-[0.9rem] text-left";
 
   const accentWrapClasses = layout === "tile" ? "h-[2.6rem] w-[2.6rem]" : "h-[2.4rem] w-[2.4rem] shrink-0";
-  // `row` — заголовки экрана неба длиннее тех, что были в расчёте, когда
-  // размер задавался («Созвездие Вечного Смеха», «то, что мы правда
-  // сказали») — при 16/13.5px карточка раздувалась по высоте только от
-  // переноса строк. `tile` (домашний экран) остаётся как был.
-  const labelClasses = layout === "tile" ? "text-[17px]" : "text-[14.5px]";
-  const hintClasses = layout === "tile" ? "text-[13.5px]" : "text-[12px]";
+  // `row` (экран неба) здесь не тронут: заголовки там длиннее тех, что
+  // были в расчёте, когда размер задавался («Созвездие Вечного Смеха»,
+  // «то, что мы правда сказали») — при 16/13.5px карточка раздувалась
+  // по высоте только от переноса строк, отсюда и нынешние, уже подобранные
+  // под это 14.5px/12px.
+  //
+  // `tile` (домашний экран) — крупнее (была 17px/13.5px): жаловались
+  // именно на эти подписи, а не на `row`. Здесь можно позволить себе
+  // больше, чем где-либо ещё в сетке домашнего экрана: перенос строки
+  // не страшен, высота тайла зафиксирована с запасом и обрезается сама
+  // (см. `layoutClasses` выше) — единственное место, где укрупнение
+  // шрифта гарантированно не протечёт наружу, в `natural`-высоту всей
+  // сетки, и не запустит компенсирующее сжатие в `fit()`.
+  const labelClasses = layout === "tile" ? "text-[19px]" : "text-[14.5px]";
+  const hintClasses = layout === "tile" ? "text-[15px]" : "text-[12px]";
   const textWrapClasses = layout === "row" ? "min-w-0 flex-1" : "";
 
   return (
@@ -262,7 +280,7 @@ export function WidgetButton({
       // Гаснет только содержимое. Наклон и нажатие («подача под пальцем»)
       // тоже здесь не прописаны Tailwind-ом — обе живут в `.tilt`/
       // `.tilt.is-pressed` (globals.css), в `useTilt` выше.
-      className={`glass tilt group flex w-full min-w-0 rounded-[1.55rem] p-[1.05rem] disabled:pointer-events-none ${layoutClasses} ${className}`}
+      className={`glass tilt group flex w-full min-w-0 rounded-[1.55rem] p-[0.9rem] disabled:pointer-events-none ${layoutClasses} ${className}`}
     >
       {accent && (
         <span className={`relative flex shrink-0 items-center justify-center transition-opacity duration-300 group-disabled:opacity-40 ${accentWrapClasses}`}>

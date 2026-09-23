@@ -49,13 +49,13 @@ export default function DistanceWidget({
 
   return (
     <Widget title="МЕЖДУ НАМИ" className={className}>
-      <div className="flex flex-1 flex-col justify-between gap-[0.85rem]">
-        <div className="flex flex-1 flex-col items-center justify-center gap-[0.15rem] py-[0.4rem]">
+      <div className="flex flex-1 flex-col justify-between gap-[0.7rem]">
+        <div className="flex flex-1 flex-col items-center justify-center gap-[0.15rem] py-[0.3rem]">
           <span className="hero-number">{spaceThousands(distanceKm)}</span>
           <span className="hero-unit">км</span>
         </div>
 
-        <div className="inset-panel trend-panel px-[0.85rem] py-[0.65rem]">
+        <div className="inset-panel trend-panel px-[0.85rem] py-[0.4rem]">
           <div className="scale-track">
             <div className="scale-fill" style={{ width: `${pct}%` }} />
             <div className="scale-marker" style={{ left: `${pct}%` }} />

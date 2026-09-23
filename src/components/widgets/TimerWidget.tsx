@@ -54,13 +54,13 @@ export default function TimerWidget({ counter, tz, className }: TimerWidgetProps
 
   return (
     <Widget title="БЕЗ ТЕБЯ" depth className={className}>
-      <div className="flex flex-1 flex-col justify-between gap-[0.85rem]">
-        <div className="flex flex-1 flex-col items-center justify-center gap-[0.15rem] py-[0.4rem]">
+      <div className="flex flex-1 flex-col justify-between gap-[0.7rem]">
+        <div className="flex flex-1 flex-col items-center justify-center gap-[0.15rem] py-[0.3rem]">
           <span className="hero-number">{days}</span>
           <span className="hero-unit">{plural(days, "день", "дня", "дней")}</span>
         </div>
 
-        <div className="inset-panel trend-panel px-[0.85rem] py-[0.65rem]">
+        <div className="inset-panel trend-panel px-[0.85rem] py-[0.4rem]">
           <div className="week-row">
             {WEEKDAY_LABELS.map((label, i) => (
               <span key={label} className={`week-cell${i + 1 === weekday ? " is-today" : ""}`}>
