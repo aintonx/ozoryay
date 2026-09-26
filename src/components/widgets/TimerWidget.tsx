@@ -60,7 +60,7 @@ export default function TimerWidget({ counter, tz, className }: TimerWidgetProps
           <span className="hero-unit">{plural(days, "день", "дня", "дней")}</span>
         </div>
 
-        <div className="inset-panel trend-panel px-[0.85rem] py-[0.4rem]">
+        <div className="inset-panel trend-panel px-[0.85rem] py-[0.65rem]">
           <div className="week-row">
             {WEEKDAY_LABELS.map((label, i) => (
               <span key={label} className={`week-cell${i + 1 === weekday ? " is-today" : ""}`}>

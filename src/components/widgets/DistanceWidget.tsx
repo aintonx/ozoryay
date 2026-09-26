@@ -55,7 +55,7 @@ export default function DistanceWidget({
           <span className="hero-unit">км</span>
         </div>
 
-        <div className="inset-panel trend-panel px-[0.85rem] py-[0.4rem]">
+        <div className="inset-panel trend-panel px-[0.85rem] py-[0.65rem]">
           <div className="scale-track">
             <div className="scale-fill" style={{ width: `${pct}%` }} />
             <div className="scale-marker" style={{ left: `${pct}%` }} />
