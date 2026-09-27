@@ -43,10 +43,11 @@ const LIT_LIMIT = 30;
 const HINT_TEXT = "нажми ещё раз — загорится новая звезда";
 
 /** Ключ в sessionStorage: страница `/zona` ставит его перед уходом свайпом
- *  вниз, чтобы здесь понять — это не обычный заход, а возврат, и вступление
- *  нужно не проигрывать, а сразу открыться уже поднятым взглядом и тут же
- *  начать опускать его обратно. См. `useLayoutEffect` ниже и `usePullToClose`
- *  на странице `/zona`. */
+ *  вниз, чтобы здесь понять — это не обычный заход, а возврат. Камера к
+ *  этому моменту уже опущена самим жестом на той странице (см.
+ *  `usePullToClose` и `LiftedSky` там) — здесь остаётся не переигрывать
+ *  подъём заново, а сразу открыться без вступления и вернуть виджеты. См.
+ *  `useLayoutEffect` ниже. */
 const ZONA_RETURN_KEY = "zonaReturning";
 
 interface NightProps {
@@ -121,8 +122,18 @@ export default function Night({ settings, letters }: NightProps) {
   const [journey, setJourney] = useState(false);
   const [kissToken, setKissToken] = useState(0);
   const [kissInFlight, setKissInFlight] = useState(false);
-  /** Нажали на «Зону»: взгляд поднимается к небу, см. `ZonaLift`. */
+  /** Нажали на «Зону»: взгляд поднимается к небу, см. `ZonaLift`. Ведёт
+   *  и подъём неба (`active` в `ZonaLift`), и веление виджетов на время
+   *  подъёма — но не обратный ход: на возврате со страницы `/zona` небо
+   *  уже опущено самим жестом там, и переигрывать эту анимацию заново не
+   *  нужно (см. `zonaReturning` ниже и комментарий у `ZONA_RETURN_KEY`). */
   const [zonaOpening, setZonaOpening] = useState(false);
+  /** Возврат со страницы «Зоны»: ровно один кадр, пока виджеты ещё не
+   *  начали выезжать обратно. Отдельно от `zonaOpening` намеренно — эта
+   *  метка веляет только виджетами, не небом: небо на возврате остаётся
+   *  плоским (`ZonaLift` получает `active=false` всё время), потому что
+   *  оно уже опущено жестом на `/zona` до того, как случилась навигация. */
+  const [zonaReturning, setZonaReturning] = useState(false);
 
   const timers = useRef<number[]>([]);
   const sparkTimer = useRef<number | undefined>(undefined);
@@ -138,12 +149,26 @@ export default function Night({ settings, letters }: NightProps) {
     };
   }, []);
 
+  // Прогреваем чанк страницы «Зоны» заранее, а не в момент навигации: подъём
+  // взгляда (`ZonaLift`) и так длится достаточно, чтобы успеть подгрузить его
+  // в фоне, и к моменту, когда тьма по краям сомкнётся, переход на `/zona`
+  // должен случиться без единого лишнего кадра ожидания (apple-design:
+  // «be vigilant about every latency» — на входном пути ничего, кроме самого
+  // жеста, не должно тормозить кадр).
+  useEffect(() => {
+    router.prefetch("/zona");
+  }, [router]);
+
   // Возврат со страницы «Зоны»: до первой отрисовки экрана (пока браузер
   // ещё не нарисовал кадр) проверяем метку и, если она есть, открываемся
-  // сразу в уже поднятом состоянии — минуя рассвет и с уже спрятанными
-  // виджетами, — а на следующем кадре опускаем взгляд обратно. Именно
-  // `useLayoutEffect`, а не `useEffect`: он успевает до показа кадра
-  // пользователю, поэтому обычное вступление не мелькает даже на миг.
+  // сразу в уже поднятом состоянии — минуя рассвет, с уже спрятанными
+  // виджетами, — а на следующем кадре возвращаем виджеты. Небо здесь не
+  // трогаем вовсе (`zonaOpening` не участвует): оно уже опущено жестом на
+  // самой странице `/zona` (см. `usePullToClose` + `LiftedSky` там) до того,
+  // как случилась навигация, — переигрывать подъём заново значило бы дважды
+  // опускать одну и ту же камеру. Именно `useLayoutEffect`, а не `useEffect`:
+  // он успевает до показа кадра пользователю, поэтому обычное вступление не
+  // мелькает даже на миг.
   useLayoutEffect(() => {
     let returning = false;
     try {
@@ -168,8 +193,8 @@ export default function Night({ settings, letters }: NightProps) {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setSkipDawn(true);
     setIntro(2);
-    setZonaOpening(true);
-    const raf = window.requestAnimationFrame(() => setZonaOpening(false));
+    setZonaReturning(true);
+    const raf = window.requestAnimationFrame(() => setZonaReturning(false));
     return () => window.cancelAnimationFrame(raf);
   }, []);
 
@@ -330,7 +355,10 @@ export default function Night({ settings, letters }: NightProps) {
 
   /** Нажали на «Зону»: запускаем подъём взгляда (см. `ZonaLift`). */
   const onOpenZona = useCallback(() => setZonaOpening(true), []);
-  /** Взгляд запрокинут до конца — открываем страницу входа. */
+  /** Взгляд запрокинут до конца — открываем страницу входа. Маршрут уже
+   *  прогрет заранее (см. эффект с `router.prefetch` выше), так что сама
+   *  навигация происходит без задержки на подгрузку чанка ровно в момент,
+   *  когда тьма по краям уже сомкнулась. */
   const onZonaLiftDone = useCallback(() => router.push("/zona"), [router]);
 
   // Всё, что за вечер уже зажглось: отговорившие светятся ровным следом,
@@ -350,11 +378,11 @@ export default function Night({ settings, letters }: NightProps) {
 
   const showing = spark !== null || projectorPlaying;
   // Интерфейс уходит с глаз на всё, ради чего стоит смотреть на небо.
-  const veiled = intro !== 2 || showing || kissInFlight || journey || zonaOpening;
+  const veiled = intro !== 2 || showing || kissInFlight || journey || zonaOpening || zonaReturning;
 
   return (
     <>
-      <ZonaLift active={zonaOpening} onDone={onZonaLiftDone}>
+      <ZonaLift active={zonaOpening} reducedMotion={reducedMotion} onDone={onZonaLiftDone}>
         <Sky
           days={counter.nights}
           bearingDeg={settings.bearingDeg}

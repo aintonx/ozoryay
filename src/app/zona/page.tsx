@@ -3,6 +3,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Sky from "@/components/Sky";
+import { LiftedSky } from "@/components/ZonaLift";
 import SpaceArrival from "@/components/SpaceArrival";
 import { SEED_SETTINGS } from "@/lib/defaults";
 import { useObserver } from "@/lib/useObserver";
@@ -30,19 +31,27 @@ function formatPhone(digits: string) {
  * Страница входа в «Зону».
  *
  * Небо здесь — тот же компонент, что и на главном экране, с теми же
- * настройками: после `ZonaLift` взгляд должен продолжать смотреть в то же
- * самое небо, а не увидеть внезапно другую картинку. Второго рендерера не
- * заводим — ровно один канвас, тут и там.
+ * настройками, и обёрнут в тот же `LiftedSky`, что и `ZonaLift` на главном
+ * экране (см. `Night.tsx`): к моменту, когда эта страница становится видна,
+ * взгляд уже поднят, горизонт и холмы ушли за нижний край — ровно то место,
+ * куда камера приехала, а не заново нарисованные дома и холмы с нуля. Раньше
+ * здесь не было этой обёртки вовсе — небо рисовалось в состоянии покоя, и на
+ * долю секунды под карточкой были видны те же холмы, что и на домашнем
+ * экране, будто взгляд никуда и не поднимался.
  *
- * Карточка просто прилетает на место — см. `SpaceArrival`. Закрывается не
- * кнопкой «назад», а тем же жестом, что и шторки на телефоне: потяни вниз
- * за ручку сверху карточки (`usePullToClose`). При закрытии выставляется
- * метка `zonaReturning` в sessionStorage и происходит обычная навигация на
- * `/` — а там `Night.tsx` подхватывает эту метку и разворачивает подъём
- * взгляда назад: тот же путь, что и открытие, только в обратную сторону.
- * Здесь, на этой странице, разворачивать нечего — вся обратная анимация
- * живёт на главном экране, потому что и виджеты, которые должны вернуться,
- * тоже там.
+ * Карточка прилетает на место (`SpaceArrival`), а закрывается не кнопкой
+ * «назад», а тем же жестом, что и шторки на телефоне: потяни вниз за ручку
+ * сверху карточки (`usePullToClose`). Небо при этом опускается вместе
+ * с пальцем один в один — тот же `t`, что ведёт карточку (`pull.progress`),
+ * ведёт и масштаб неба через `LiftedSky`, так что «взгляд возвращается»
+ * не отдельным шагом после закрытия, а тем же самым движением, что и сам
+ * жест: потянул вниз — и камера, и карточка идут вместе, отпустил раньше
+ * порога — обе пружинят обратно наверх. Закрытие целиком — от первого
+ * миллиметра пальца до полностью опущенного неба — происходит здесь, на
+ * этой странице, до навигации: к моменту, когда выставляется метка
+ * `zonaReturning` и происходит переход на `/`, небо уже в состоянии покоя.
+ * `Night.tsx` на возврате поэтому не переигрывает подъём заново — только
+ * возвращает виджеты (см. комментарий там же, у `zonaReturning`).
  *
  * Пока это витрина без базы: номер только форматируется на глазах, вход
  * никуда не ведёт. Экран честно об этом говорит, а не притворяется, что
@@ -81,26 +90,35 @@ export default function ZonaPage() {
 
   return (
     <main className="relative h-[100dvh] w-full overflow-hidden">
-      <Sky
-        days={counter.nights}
-        bearingDeg={SEED_SETTINGS.bearingDeg}
-        observer={observer}
-        letters={[]}
-        chains={[]}
-        openId={null}
-        hintId={null}
-        obsessionId={null}
-        birthNight={null}
-        projectorImage={null}
-        projectorToken={0}
-        projectorCancel={0}
-        onProjectorDone={() => {}}
-        cometToken={0}
-        dawn={false}
-        reducedMotion={reducedMotion}
-      />
+      {/* `t` идёт от `pull.progress`, не от фиксированного «открыто/закрыто»:
+          пока палец на экране, небо опускается ровно настолько, насколько
+          утянута карточка (см. `LiftedSky` — тот же приём, что и у `ZonaLift`
+          на главном экране, только ведёт им не таймер, а сам жест). */}
+      <LiftedSky t={1 - pull.progress} transition={pull.transition} reducedMotion={reducedMotion}>
+        <Sky
+          days={counter.nights}
+          bearingDeg={SEED_SETTINGS.bearingDeg}
+          observer={observer}
+          letters={[]}
+          chains={[]}
+          openId={null}
+          hintId={null}
+          obsessionId={null}
+          birthNight={null}
+          projectorImage={null}
+          projectorToken={0}
+          projectorCancel={0}
+          onProjectorDone={() => {}}
+          cometToken={0}
+          dawn={false}
+          reducedMotion={reducedMotion}
+        />
+      </LiftedSky>
 
-      <div className="relative z-10 flex h-full w-full items-center justify-center px-[1.15rem] py-[max(1.5rem,env(safe-area-inset-top))]">
+      {/* z-50, выше тьмы по краям (`z-40` внутри `LiftedSky`): карточка
+          обязана оставаться читаемой на любой стадии жеста, а не просвечивать
+          сквозь смыкающуюся тьму на середине перетаскивания. */}
+      <div className="relative z-50 flex h-full w-full items-center justify-center px-[1.15rem] py-[max(1.5rem,env(safe-area-inset-top))]">
         <SpaceArrival className="w-full max-w-[26rem]">
           <div style={pull.style}>
             <div className="glass w-full rounded-[1.7rem] p-[1.5rem]">
