@@ -308,6 +308,81 @@ body {
 }
 
 /*
+ * Хвостик карточки «Зоны» — капля между звездой и окном входа.
+ *
+ * Не отдельная деталь рядом, а тот же самый материал: класс вешается
+ * вместе с `.glass` на тот же узел (`class="glass zona-tail"`), поэтому
+ * размытие, тонировка и зерно — одни и те же слои, что и у карточки
+ * прямо под ним. Это ровно тот приём, которым в iOS/macOS собирают
+ * хвостик всплывающей панели — повёрнутый квадрат со скруглёнными
+ * углами, наполовину задвинутый под соседнюю панель того же материала:
+ * шов на стыке прячут не пиксели, а совпадение фона и блюра.
+ *
+ * `top` заведён так, что необращённый прямоугольник стоит по центру
+ * верхнего края карточки (родитель — тот же относительный узел, что
+ * несёт `pull.style` в `zona/page.tsx`): после поворота на 45° верхний
+ * угол капли уходит над этим краем, нижний — прячется под ним.
+ */
+.glass.zona-tail {
+  position: absolute;
+  top: -0.85rem;
+  left: 50%;
+  z-index: 0;
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 0.5rem;
+  transform: translateX(-50%) rotate(45deg);
+}
+
+/*
+ * Звезда «Зоны» — та, из которой выпадает окно входа (`ZonaAuthReveal`).
+ *
+ * Рисуется не на канвасе неба вместе с остальными: канвас нигде не отдаёт
+ * наружу экранные координаты одной конкретной звезды с точностью, которая
+ * нужна, чтобы хвостик карточки в неё точно попадал (см. `renderer.ts` —
+ * `SkyHandle` умеет только `setOptions`/`destroy`). Своя, в разметке,
+ * с координатой, которую `ZonaAuthReveal` меряет сам от верхнего края
+ * карточки.
+ *
+ * Не выдуманный цвет — тот же рецепт, что у настоящих звёзд-писем
+ * (`drawLetterStar` в `renderer.ts`): ядро амбер-хот, вокруг — ореол
+ * амбер, гаснущий к краю. Тёплый тон на этом небе не украшение, а язык:
+ * «Гамма остаётся холодной: единственный тёплый цвет проекта — амбер
+ * писем» (`stars.ts`) — эта звезда тоже письмо, просто одно на двоих,
+ * и потому имеет право на тот же огонь.
+ */
+.zona-star__halo {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4.2rem;
+  height: 4.2rem;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--color-amber-hot) 34%, transparent) 0%,
+    color-mix(in srgb, var(--color-amber) 18%, transparent) 14%,
+    color-mix(in srgb, var(--color-amber) 5%, transparent) 40%,
+    transparent 72%
+  );
+  animation: twinkle-soft 4.4s ease-in-out infinite;
+}
+
+.zona-star__core {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0.5rem;
+  height: 0.5rem;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: var(--color-amber-hot);
+  box-shadow: 0 0 0.45rem 0.05rem color-mix(in srgb, var(--color-amber-hot) 70%, transparent);
+  animation: twinkle-soft 4.4s ease-in-out infinite;
+}
+
+/*
  * Наклон вслед за курсором.
  *
  * Лёгкий поворот по двум осям плюс блик, скользящий следом за указателем, —
