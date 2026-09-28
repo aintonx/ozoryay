@@ -1,66 +1,30 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Sky from "@/components/Sky";
 import { LiftedSky } from "@/components/ZonaLift";
-import ZonaAuthReveal from "@/components/ZonaAuthReveal";
-import { IconLock, IconUser } from "@/components/ui/Icons";
+import SpaceArrival from "@/components/SpaceArrival";
 import { SEED_SETTINGS } from "@/lib/defaults";
 import { useObserver } from "@/lib/useObserver";
 import { useReducedMotion } from "@/lib/useReducedMotion";
 import { useSeparationCounter } from "@/lib/time/useSeparationDays";
 import { usePullToClose } from "@/lib/usePullToClose";
 
+/** Сколько цифр в номере после +7. */
+const PHONE_DIGITS = 10;
+
 /** Тот же ключ, что и в `Night.tsx` — вынесен туда, не сюда: страница
  *  «Зоны» его только выставляет и не обязана знать, как он используется. */
 const ZONA_RETURN_KEY = "zonaReturning";
 
-/**
- * Солнце из вложения, перекрашенное в свои же тона: исходный градиент
- * (rgb 255,227,176 → rgb 242,197,124) — это буквально `--color-amber-hot`
- * и `--color-amber` этого сайта, только записанные не переменными. Ничего
- * не пришлось подбирать заново — только заменить литералы на токены,
- * чтобы шестёрка цветов в `globals.css` осталась единственным источником.
- *
- * Занимает место аватарки из референса, но не на плашке-бейдже: сайт
- * нигде не сажает иконки на закрашенный кружок (см. `WidgetButton` —
- * «не бейдж с пиктограммой внутри»), поэтому вместо подложки — мягкое
- * свечение самим силуэтом (`drop-shadow` ниже).
- */
-function SunAccent() {
-  return (
-    <svg
-      viewBox="0 0 1024 768"
-      className="h-[3.6rem] w-[3.6rem]"
-      style={{
-        filter: "drop-shadow(0 0 0.85rem color-mix(in srgb, var(--color-amber) 40%, transparent))",
-      }}
-      aria-hidden="true"
-    >
-      <g transform="matrix(12.727819,0,0,12.727819,306.846643,182.811359)">
-        <path
-          fill="url(#zona-sun-gradient)"
-          fillRule="nonzero"
-          d="M23.395,14.106C26.353,12.723 26.223,8.038 29.153,8.222C25.028,5.482 25.134,11.328 20.064,9.457C21.171,6.389 17.772,3.171 19.973,1.23C15.118,2.209 19.328,6.269 14.418,8.531C13.034,5.573 8.35,5.703 8.534,2.773C5.794,6.898 11.64,6.792 9.769,11.862C6.701,10.755 3.483,14.154 1.542,11.953C2.521,16.808 6.581,12.598 8.843,17.508C5.885,18.892 6.015,23.576 3.085,23.392C7.21,26.132 7.104,20.286 12.174,22.157C11.067,25.225 14.466,28.443 12.265,30.384C17.12,29.405 12.91,25.345 17.82,23.083C19.204,26.041 23.888,25.911 23.704,28.841C26.444,24.716 20.598,24.822 22.469,19.752C25.537,20.859 28.755,17.46 30.695,19.661C29.716,14.806 25.656,19.016 23.394,14.106L23.395,14.106Z"
-        />
-      </g>
-      <defs>
-        <linearGradient
-          id="zona-sun-gradient"
-          x1="0"
-          y1="0"
-          x2="1"
-          y2="0"
-          gradientUnits="userSpaceOnUse"
-          gradientTransform="matrix(0,29.154,-29.154,0,1.542,1.23)"
-        >
-          <stop offset="0" stopColor="var(--color-amber-hot)" />
-          <stop offset="1" stopColor="var(--color-amber)" />
-        </linearGradient>
-      </defs>
-    </svg>
-  );
+/** «9189551673» → «918 955 1673»: те же группы, что в переписке про эти
+ *  номера, а не привычная сотовая разбивка по два-два-два-два. */
+function formatPhone(digits: string) {
+  const a = digits.slice(0, 3);
+  const b = digits.slice(3, 6);
+  const c = digits.slice(6, 10);
+  return [a, b, c].filter(Boolean).join(" ");
 }
 
 /**
@@ -75,29 +39,24 @@ function SunAccent() {
  * долю секунды под карточкой были видны те же холмы, что и на домашнем
  * экране, будто взгляд никуда и не поднимался.
  *
- * Карточка выпадает из звезды (`ZonaAuthReveal`) — раньше здесь был
- * плавный прилёт из глубины (`SpaceArrival`, теперь нигде не подключён),
- * но появление просили пересобрать целиком. Закрывается по-прежнему не
- * кнопкой «назад», а тем же жестом, что и шторки на телефоне: потяни вниз
- * за ручку сверху карточки (`usePullToClose`). Небо при этом опускается
- * вместе с пальцем один в один — тот же `t`, что ведёт карточку
- * (`pull.progress`), ведёт и масштаб неба через `LiftedSky`, так что
- * «взгляд возвращается» не отдельным шагом после закрытия, а тем же самым
- * движением, что и сам жест: потянул вниз — и камера, и карточка идут
- * вместе, отпустил раньше порога — обе пружинят обратно наверх. Закрытие
- * целиком — от первого миллиметра пальца до полностью опущенного неба —
- * происходит здесь, на этой странице, до навигации: к моменту, когда
- * выставляется метка `zonaReturning` и происходит переход на `/`, небо уже
- * в состоянии покоя. `Night.tsx` на возврате поэтому не переигрывает
- * подъём заново — только возвращает виджеты (см. комментарий там же,
- * у `zonaReturning`).
+ * Карточка прилетает на место (`SpaceArrival`), а закрывается не кнопкой
+ * «назад», а тем же жестом, что и шторки на телефоне: потяни вниз за ручку
+ * сверху карточки (`usePullToClose`). Небо при этом опускается вместе
+ * с пальцем один в один — тот же `t`, что ведёт карточку (`pull.progress`),
+ * ведёт и масштаб неба через `LiftedSky`, так что «взгляд возвращается»
+ * не отдельным шагом после закрытия, а тем же самым движением, что и сам
+ * жест: потянул вниз — и камера, и карточка идут вместе, отпустил раньше
+ * порога — обе пружинят обратно наверх. Закрытие целиком — от первого
+ * миллиметра пальца до полностью опущенного неба — происходит здесь, на
+ * этой странице, до навигации: к моменту, когда выставляется метка
+ * `zonaReturning` и происходит переход на `/`, небо уже в состоянии покоя.
+ * `Night.tsx` на возврате поэтому не переигрывает подъём заново — только
+ * возвращает виджеты (см. комментарий там же, у `zonaReturning`).
  *
- * Пока это витрина без базы: никнейм и пароль ничего не проверяют, вход
+ * Пока это витрина без базы: номер только форматируется на глазах, вход
  * никуда не ведёт. Экран честно об этом говорит, а не притворяется, что
- * уже работает. Здесь же вход = регистрация — своей базы пользователей
- * с восстановлением пароля и прочим этому микроблогу на двоих не нужно,
- * поэтому и полей ровно два. Сама переписка приедет вместе с базой
- * отдельным шагом.
+ * уже работает. Аллоулист (её номер и мой) и сама переписка приедут вместе
+ * с базой отдельным шагом.
  */
 export default function ZonaPage() {
   const router = useRouter();
@@ -109,11 +68,12 @@ export default function ZonaPage() {
   const counter = useSeparationCounter(SEED_SETTINGS.separationStart, SEED_SETTINGS.herTimezone);
   const reducedMotion = useReducedMotion();
 
-  const [nickname, setNickname] = useState("");
-  const [password, setPassword] = useState("");
+  const [phone, setPhone] = useState("");
+  const [name, setName] = useState("");
   const [tried, setTried] = useState(false);
 
-  const ready = nickname.trim().length > 0 && password.length > 0;
+  const ready = phone.length === PHONE_DIGITS && name.trim().length > 0;
+  const formatted = useMemo(() => formatPhone(phone), [phone]);
 
   const handleClose = useCallback(() => {
     try {
@@ -159,14 +119,9 @@ export default function ZonaPage() {
           обязана оставаться читаемой на любой стадии жеста, а не просвечивать
           сквозь смыкающуюся тьму на середине перетаскивания. */}
       <div className="relative z-50 flex h-full w-full items-center justify-center px-[1.15rem] py-[max(1.5rem,env(safe-area-inset-top))]">
-        <ZonaAuthReveal className="w-full max-w-[26rem]">
-          <div className="relative" style={pull.style}>
-            {/* Хвостик — капля того же стекла, что и карточка ниже (см.
-                `.glass.zona-tail` в globals.css): растёт вместе с ней одним
-                узлом, а не сама по себе рядом. */}
-            <div aria-hidden className="glass zona-tail" />
-
-            <div className="glass relative z-[1] w-full rounded-[1.7rem] p-[1.5rem]">
+        <SpaceArrival className="w-full max-w-[26rem]">
+          <div style={pull.style}>
+            <div className="glass w-full rounded-[1.7rem] p-[1.5rem]">
               {/* Ручка-хват: отрицательные поля дотягивают её до самых краёв
                   карточки и до её верхней кромки, так что это один и тот же
                   стеклянный кусок, а не отдельная плашка над ним. Жест висит
@@ -174,7 +129,7 @@ export default function ZonaPage() {
                   формы то и дело спорил бы с перетаскиванием. */}
               <div
                 {...pull.handleProps}
-                className="-mx-[1.5rem] -mt-[1.5rem] mb-[0.5rem] flex cursor-grab flex-col items-center gap-[0.4rem] rounded-t-[1.7rem] pb-[0.7rem] pt-[0.55rem] active:cursor-grabbing"
+                className="-mx-[1.5rem] -mt-[1.5rem] mb-[0.9rem] flex cursor-grab flex-col items-center gap-[0.4rem] rounded-t-[1.7rem] pb-[0.7rem] pt-[0.55rem] active:cursor-grabbing"
               >
                 <span aria-hidden className="h-[0.28rem] w-[2.6rem] rounded-full bg-star/25" />
                 <span className="font-system text-[11px] tracking-[0.04em] text-star/45">
@@ -182,26 +137,32 @@ export default function ZonaPage() {
                 </span>
               </div>
 
-              {/* Место аватарки из референса — вместо неё солнце из вложения,
-                  без круглой подложки-бейджа (см. `SunAccent` выше). */}
-              <div className="mb-[1.1rem] flex justify-center">
-                <SunAccent />
-              </div>
+              <h1 className="font-display text-[2rem] leading-none text-amber-hot" style={{ textWrap: "balance" }}>
+                Зона
+              </h1>
 
-              <div className="flex flex-col gap-[0.85rem]">
+              <p className="font-letter mt-[0.7rem] text-[15px] leading-[1.6] text-star/85">
+                «Зона» — Зоря и Набоев, сплавленные в одно слово: то, что
+                останется нашим, даже если весь мир вокруг однажды замолчит.
+              </p>
+
+              <div className="mt-[1.6rem] flex flex-col gap-[0.85rem]">
                 <label className="block">
                   <span className="font-system mb-[0.4rem] block text-[11.5px] font-semibold tracking-[0.05em] text-star/54">
-                    никнейм
+                    номер телефона
                   </span>
-                  <span className="flex items-center gap-[0.6rem] rounded-[1rem] border border-white/14 bg-night/40 px-[0.9rem] py-[0.75rem]">
-                    <IconUser size={17} className="shrink-0 text-star/45" />
+                  <span className="flex items-center gap-[0.55rem] rounded-[1rem] border border-white/14 bg-night/40 px-[0.9rem] py-[0.75rem]">
+                    <span className="font-system text-[14.5px] font-semibold text-star/70">+7</span>
                     <input
-                      type="text"
-                      value={nickname}
-                      onChange={(e) => setNickname(e.target.value)}
-                      placeholder="как тебя называть"
-                      maxLength={24}
-                      autoComplete="username"
+                      type="tel"
+                      inputMode="numeric"
+                      autoComplete="tel-national"
+                      value={formatted}
+                      onChange={(e) => {
+                        const digits = e.target.value.replace(/\D/g, "").slice(0, PHONE_DIGITS);
+                        setPhone(digits);
+                      }}
+                      placeholder="918 955 1673"
                       className="font-system w-full bg-transparent text-[14.5px] text-star placeholder:text-star/35 focus:outline-none"
                     />
                   </span>
@@ -209,19 +170,16 @@ export default function ZonaPage() {
 
                 <label className="block">
                   <span className="font-system mb-[0.4rem] block text-[11.5px] font-semibold tracking-[0.05em] text-star/54">
-                    пароль
+                    как тебя называть
                   </span>
-                  <span className="flex items-center gap-[0.6rem] rounded-[1rem] border border-white/14 bg-night/40 px-[0.9rem] py-[0.75rem]">
-                    <IconLock size={17} className="shrink-0 text-star/45" />
-                    <input
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="придумай пароль"
-                      autoComplete="new-password"
-                      className="font-system w-full bg-transparent text-[14.5px] text-star placeholder:text-star/35 focus:outline-none"
-                    />
-                  </span>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="имя или ник"
+                    maxLength={24}
+                    className="font-system w-full rounded-[1rem] border border-white/14 bg-night/40 px-[0.9rem] py-[0.75rem] text-[14.5px] text-star placeholder:text-star/35 focus:outline-none"
+                  />
                 </label>
 
                 <button
@@ -243,17 +201,9 @@ export default function ZonaPage() {
                   </p>
                 )}
               </div>
-
-              {/* Подпись внизу — объясняет имя, не выпячивая его: первые
-                  буквы фамилий, из которых сложена «Зона» (см. задачу). */}
-              <p className="font-system mt-[1.3rem] border-t border-white/10 pt-[0.8rem] text-center text-[11px] leading-snug text-star/40">
-                <span className="font-semibold text-amber-hot/80">ЗО</span>
-                ря + <span className="font-semibold text-amber-hot/80">НА</span>
-                боев = Зона
-              </p>
             </div>
           </div>
-        </ZonaAuthReveal>
+        </SpaceArrival>
       </div>
     </main>
   );
