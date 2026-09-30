@@ -166,8 +166,14 @@ export default function ZonaPage() {
 
       {/* z-50, выше тьмы по краям (`z-40` внутри `LiftedSky`): карточка
           обязана оставаться читаемой на любой стадии жеста, а не просвечивать
-          сквозь смыкающуюся тьму на середине перетаскивания. */}
-      <div className="relative z-50 flex h-full w-full items-center justify-center px-[1.15rem] py-[max(1.5rem,env(safe-area-inset-top))]">
+          сквозь смыкающуюся тьму на середине перетаскивания. Отступы снизу
+          и сверху не равны нарочно: звезда (`LAYOUT.zonaStar.y`) стоит на
+          фиксированной высоте, и если центрировать карточку строго
+          геометрически, разрыв между ней и звездой на высоких экранах
+          растягивается — нижний отступ чуть больше верхнего, чтобы сдвинуть
+          центр тяжести карточки повыше, к звезде, не переставая быть
+          «посередине» на глаз. */}
+      <div className="relative z-50 flex h-full w-full items-center justify-center px-[1.15rem] pb-[11dvh] pt-[max(1.5rem,env(safe-area-inset-top))]">
         <ZonaAuthReveal className="w-full max-w-[26rem]">
           <div style={pull.style}>
             {/* Одна фигура — карточка и стрелка-хвостик вырезаны одним
