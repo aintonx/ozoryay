@@ -22,6 +22,7 @@ export interface SkyProps {
   cometToken: number;
   dawn: boolean;
   reducedMotion: boolean;
+  zonaStarBoost: number;
 }
 
 export default function Sky(props: SkyProps) {

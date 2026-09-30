@@ -85,6 +85,16 @@ export interface SkyOptions {
    * Как только флаг снимут, солнце уходит за хребет, даже если не достояло.
    */
   dawn: boolean;
+  /**
+   * Звезда «Зоны» — своя точка на этом же небе (`LAYOUT.zonaStar`), горит
+   * всегда, ещё до всякого нажатия. 0 — в покое, как обычная звезда-день
+   * потеплее; 1 — разгорается заметно ярче и крупнее в момент, когда
+   * открывается окно входа (см. `zona/page.tsx`, `ZonaAuthReveal`).
+   * Сглаживание — внутри рендерера (см. `zonaBoost` в `frame`), тем же
+   * приёмом, что и у `openAmt`, поэтому здесь достаточно мгновенной цели,
+   * а не уже посчитанной кривой.
+   */
+  zonaStarBoost: number;
 }
 
 /** Сколько длится рождение звезды, секунд. */
@@ -142,6 +152,10 @@ export function createSky(canvas: HTMLCanvasElement, initial: SkyOptions): SkyHa
   let projDoneFired = true;
   let cometToken = initial.cometToken;
   let cometStart = -Infinity;
+  /** Сглаженная яркость звезды «Зоны» — цель приходит мгновенно в `opts`,
+   *  разгорание и погасание растянуты здесь же, приёмом `approach`, что
+   *  и у `openAmt` ниже. */
+  let zonaBoost = clamp01(initial.zonaStarBoost);
   // Если небо создано уже после вступления, восхода не было вовсе:
   // бесконечность в прошлом даёт нулевой подъём с первого же кадра.
   const dawnStart = initial.dawn ? start : -Infinity;
@@ -273,6 +287,13 @@ export function createSky(canvas: HTMLCanvasElement, initial: SkyOptions): SkyHa
     openAmt = approach(openAmt, target, rate * dt);
     const eased = easeOut(openAmt);
 
+    // Звезда «Зоны»: разгорается за полсекунды, гаснет обратно за 0.6 —
+    // тот же порядок, что у письма выше, чуть медленнее, потому что это
+    // не вспышка, а именно разгорание маяка.
+    const zonaTarget = clamp01(opts.zonaStarBoost);
+    const zonaRate = zonaTarget > zonaBoost ? 1 / 0.5 : 1 / 0.6;
+    zonaBoost = approach(zonaBoost, zonaTarget, zonaRate * dt);
+
     if (opts.birthNight !== birthSeen) {
       birthSeen = opts.birthNight;
       birthStart = now;
@@ -392,6 +413,10 @@ export function createSky(canvas: HTMLCanvasElement, initial: SkyOptions): SkyHa
     // раньше общей заслонки ниже (`dim`) и гаснет вместе со всем
     // остальным небом ровно так же, как соседняя звезда-письмо.
     drawJourneyStar(ctx, w, h, t, opts.reducedMotion);
+
+    // Звезда «Зоны» — тем же порядком: до всякой заслонки, гаснет вместе
+    // с небом при открытом письме или прожекторе, ровно как соседка выше.
+    drawZonaStar(ctx, w, h, t, opts.reducedMotion, zonaBoost);
 
     // Луна стоит там, где она на самом деле сейчас над её городом: восходит,
     // идёт по небу, садится за холмы. Иногда её просто нет — она под землёй,
@@ -774,5 +799,47 @@ function drawJourneyStar(
   ctx.beginPath();
   ctx.arc(x, y, r, 0, TAU);
   ctx.fillStyle = PALETTE.amberHot;
+  ctx.fill();
+}
+
+/**
+ * Звезда «Зоны» — тем же языком, что у маяка «Созвездия Вечного Смеха»
+ * рядом (см. `drawJourneyStar` выше): горит на этом небе всегда, ещё до
+ * первого нажатия на виджет, — не разгорается из ничего, когда открывается
+ * окно входа, а становится заметно ярче и крупнее той же самой точкой
+ * света. `boost` 0..1 — уже сглаженное значение (см. `zonaBoost` в
+ * `frame`), поэтому здесь только форма, без собственной кривой.
+ *
+ * В покое (`boost` = 0) читается как обычная звезда-день потеплее, не
+ * маяк, — тише соседки слева: та ведёт полёт по нажатию кнопки, эта пока
+ * ничего не обещает, только ждёт своего момента.
+ */
+function drawZonaStar(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  t: number,
+  reducedMotion: boolean,
+  boost: number,
+) {
+  const x = LAYOUT.zonaStar.x * w;
+  const y = LAYOUT.zonaStar.y * h;
+  const pulse = reducedMotion ? 1 : 1 + 0.07 * Math.sin((t / 3.6) * TAU);
+  const baseR = Math.max(1.5, Math.min(w, h) * 0.0032);
+  const r = baseR * (1 + boost * 0.7) * pulse;
+  const halo = r * (9 + boost * 5);
+  const a = 0.62 + boost * 0.38;
+
+  const g = ctx.createRadialGradient(x, y, 0, x, y, halo);
+  g.addColorStop(0, withAlpha(PALETTE.amberHot, 0.5 * a));
+  g.addColorStop(0.12, withAlpha(PALETTE.amber, 0.2 * a));
+  g.addColorStop(0.4, withAlpha(PALETTE.amber, 0.05 * a));
+  g.addColorStop(1, withAlpha(PALETTE.amber, 0));
+  ctx.fillStyle = g;
+  ctx.fillRect(x - halo, y - halo, halo * 2, halo * 2);
+
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, TAU);
+  ctx.fillStyle = withAlpha(PALETTE.amberHot, a);
   ctx.fill();
 }

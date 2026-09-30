@@ -308,6 +308,100 @@ body {
 }
 
 /*
+ * Окно входа в «Зону» — карточка и её хвостик-стрелка одной фигурой,
+ * не две сваренные друг с другом детали.
+ *
+ * Не собственное изобретение, а готовый, проверенный приём: именно так
+ * собирают хвостик всплывающей панели в современных open-source
+ * реализациях (`react-tooltip-contemporary`, MIT — «rounded bubble and
+ * its arrow are one clip-path: polygon(...), no borders, no
+ * pseudo-elements or SVG»).
+ * Скруглённый прямоугольник и треугольная стрелка вырезаны ОДНИМ
+ * `clip-path`, поэтому фон, блюр и тень стрелки — те же самые слои, что
+ * и у панели: шва между «хвостиком» и «окном» попросту не существует,
+ * в отличие от прежнего повёрнутого квадрата поверх.
+ *
+ * Скруглённые углы — не `border-radius` (clip-path его не видит), а та
+ * же аппроксимация дугой из N прямых отрезков, которой пользуется тот же
+ * reference: точка k стоит на истинной четверти окружности радиуса
+ * `--rad`. Здесь зашито N=5 и одна-единственная раскладка (стрелка сверху
+ * по центру) — общая же библиотека умеет четыре стороны и три позиции
+ * стрелки, но окну входа нужна только эта одна.
+ *
+ * Стрелка — не отдельная деталь, а вырез в самом верхнем крае: `--t`
+ * резервирует под неё полосу сверху (оттого и увеличенный `padding-top`
+ * в разметке — полтора исходных плюс сам `--arrow-size`), а `--a1..3` —
+ * три её точки, основание-вершина-основание, симметрично от центра.
+ */
+.glass.zona-window {
+  --rad: 1.7rem;
+  --arrow-size: 1.05rem;
+  --t: var(--arrow-size);
+
+  --rcos-0: calc(var(--rad) * cos(90deg * 0 / 5));
+  --rsin-0: calc(var(--rad) * sin(90deg * 0 / 5));
+  --rcos-1: calc(var(--rad) * cos(90deg * 1 / 5));
+  --rsin-1: calc(var(--rad) * sin(90deg * 1 / 5));
+  --rcos-2: calc(var(--rad) * cos(90deg * 2 / 5));
+  --rsin-2: calc(var(--rad) * sin(90deg * 2 / 5));
+  --rcos-3: calc(var(--rad) * cos(90deg * 3 / 5));
+  --rsin-3: calc(var(--rad) * sin(90deg * 3 / 5));
+  --rcos-4: calc(var(--rad) * cos(90deg * 4 / 5));
+  --rsin-4: calc(var(--rad) * sin(90deg * 4 / 5));
+  --rcos-5: calc(var(--rad) * cos(90deg * 5 / 5));
+  --rsin-5: calc(var(--rad) * sin(90deg * 5 / 5));
+
+  --corner1:
+    calc(var(--rad) - var(--rcos-0)) calc(var(--t) + var(--rad) - var(--rsin-0)),
+    calc(var(--rad) - var(--rcos-1)) calc(var(--t) + var(--rad) - var(--rsin-1)),
+    calc(var(--rad) - var(--rcos-2)) calc(var(--t) + var(--rad) - var(--rsin-2)),
+    calc(var(--rad) - var(--rcos-3)) calc(var(--t) + var(--rad) - var(--rsin-3)),
+    calc(var(--rad) - var(--rcos-4)) calc(var(--t) + var(--rad) - var(--rsin-4)),
+    calc(var(--rad) - var(--rcos-5)) calc(var(--t) + var(--rad) - var(--rsin-5));
+  --corner2:
+    calc(100% - var(--rad) + var(--rsin-0)) calc(var(--t) + var(--rad) - var(--rcos-0)),
+    calc(100% - var(--rad) + var(--rsin-1)) calc(var(--t) + var(--rad) - var(--rcos-1)),
+    calc(100% - var(--rad) + var(--rsin-2)) calc(var(--t) + var(--rad) - var(--rcos-2)),
+    calc(100% - var(--rad) + var(--rsin-3)) calc(var(--t) + var(--rad) - var(--rcos-3)),
+    calc(100% - var(--rad) + var(--rsin-4)) calc(var(--t) + var(--rad) - var(--rcos-4)),
+    calc(100% - var(--rad) + var(--rsin-5)) calc(var(--t) + var(--rad) - var(--rcos-5));
+  --corner3:
+    calc(100% - var(--rad) + var(--rcos-0)) calc(100% - var(--rad) + var(--rsin-0)),
+    calc(100% - var(--rad) + var(--rcos-1)) calc(100% - var(--rad) + var(--rsin-1)),
+    calc(100% - var(--rad) + var(--rcos-2)) calc(100% - var(--rad) + var(--rsin-2)),
+    calc(100% - var(--rad) + var(--rcos-3)) calc(100% - var(--rad) + var(--rsin-3)),
+    calc(100% - var(--rad) + var(--rcos-4)) calc(100% - var(--rad) + var(--rsin-4)),
+    calc(100% - var(--rad) + var(--rcos-5)) calc(100% - var(--rad) + var(--rsin-5));
+  --corner4:
+    calc(var(--rad) - var(--rsin-0)) calc(100% - var(--rad) + var(--rcos-0)),
+    calc(var(--rad) - var(--rsin-1)) calc(100% - var(--rad) + var(--rcos-1)),
+    calc(var(--rad) - var(--rsin-2)) calc(100% - var(--rad) + var(--rcos-2)),
+    calc(var(--rad) - var(--rsin-3)) calc(100% - var(--rad) + var(--rcos-3)),
+    calc(var(--rad) - var(--rsin-4)) calc(100% - var(--rad) + var(--rcos-4)),
+    calc(var(--rad) - var(--rsin-5)) calc(100% - var(--rad) + var(--rcos-5));
+
+  --a1: calc(50% - var(--arrow-size) * 0.707) var(--t);
+  --a2: 50% calc(var(--t) - var(--arrow-size) * 0.707);
+  --a3: calc(50% + var(--arrow-size) * 0.707) var(--t);
+
+  clip-path: polygon(
+    var(--corner1),
+    var(--a1),
+    var(--a2),
+    var(--a3),
+    var(--corner2),
+    var(--corner3),
+    var(--corner4)
+  );
+}
+
+/* Зерно `.glass::after` покрывает `inset: 0` и без выреза стрелки
+   заходило бы за фактическую границу окна ровно в этой одной точке. */
+.glass.zona-window::after {
+  clip-path: inherit;
+}
+
+/*
  * Наклон вслед за курсором.
  *
  * Лёгкий поворот по двум осям плюс блик, скользящий следом за указателем, —

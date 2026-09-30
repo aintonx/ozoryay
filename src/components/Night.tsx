@@ -400,6 +400,7 @@ export default function Night({ settings, letters }: NightProps) {
           cometToken={kissToken}
           dawn={intro === 0}
           reducedMotion={reducedMotion}
+          zonaStarBoost={zonaOpening ? 1 : 0}
         />
       </ZonaLift>
 
