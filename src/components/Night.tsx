@@ -400,7 +400,10 @@ export default function Night({ settings, letters }: NightProps) {
           cometToken={kissToken}
           dawn={intro === 0}
           reducedMotion={reducedMotion}
-          zonaStarBoost={zonaOpening ? 1 : 0}
+          // Нулём и во время подъёма взгляда: звезда «Зоны» вспыхивает не по
+          // нажатию на виджет, а ровно в тот миг, когда из неё начинает расти
+          // окно входа, — это уже на `/zona`, см. `zona/page.tsx`.
+          zonaStarBoost={0}
         />
       </ZonaLift>
 

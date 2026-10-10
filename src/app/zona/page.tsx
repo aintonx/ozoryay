@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Sky from "@/components/Sky";
 import { LiftedSky } from "@/components/ZonaLift";
@@ -80,10 +80,12 @@ function SunAccent() {
  * но появление просили пересобрать целиком. Сама звезда — не декорация
  * этой страницы: она часть настоящего неба (`LAYOUT.zonaStar`,
  * `drawZonaStar` в `renderer.ts`), горит всегда, ещё на главном экране,
- * и лишь становится ярче здесь, через `zonaStarBoost={1}` у `Sky` ниже
- * (на главном экране — `zonaOpening` в `Night.tsx`, тот же проп, тот же
- * сглаженный рост внутри рендерера). Карточка и её стрелка-хвостик —
- * одна фигура, один `clip-path` (`.glass.zona-window` в globals.css).
+ * и разгорается ярче здесь, в тот же кадр, когда из неё начинает расти
+ * окно: один флаг `revealed` ведёт и `zonaStarBoost` у `Sky` ниже, и
+ * `ZonaAuthReveal`. На главном экране она остаётся в покое даже во
+ * время подъёма взгляда. Карточка и её стрелка-хвостик — одна фигура,
+ * один `clip-path` (`.glass.zona-window` в globals.css), а стоит она
+ * кончиком хвостика прямо под звездой.
  *
  * Закрывается по-прежнему не кнопкой «назад», а тем же жестом, что
  * и шторки на телефоне: потяни вниз
@@ -120,6 +122,16 @@ export default function ZonaPage() {
   const [nickname, setNickname] = useState("");
   const [password, setPassword] = useState("");
   const [tried, setTried] = useState(false);
+
+  // Один флаг на две вещи: из звезды начинает расти окно (`ZonaAuthReveal`)
+  // и в тот же кадр она сама начинает гореть ярче (`zonaStarBoost` ниже).
+  // 20 мс — чтобы первый кадр успел нарисоваться схлопнутым, иначе переход
+  // не с чего запускать.
+  const [revealed, setRevealed] = useState(false);
+  useEffect(() => {
+    const t = window.setTimeout(() => setRevealed(true), 20);
+    return () => window.clearTimeout(t);
+  }, []);
 
   const ready = nickname.trim().length > 0 && password.length > 0;
 
@@ -160,104 +172,101 @@ export default function ZonaPage() {
           cometToken={0}
           dawn={false}
           reducedMotion={reducedMotion}
-          zonaStarBoost={1}
+          zonaStarBoost={revealed ? 1 : 0}
         />
       </LiftedSky>
 
-      {/* z-50, выше тьмы по краям (`z-40` внутри `LiftedSky`): карточка
-          обязана оставаться читаемой на любой стадии жеста, а не просвечивать
-          сквозь смыкающуюся тьму на середине перетаскивания. */}
-      <div className="relative z-50 flex h-full w-full items-center justify-center px-[1.15rem] py-[max(1.5rem,env(safe-area-inset-top))]">
-        <ZonaAuthReveal className="w-full max-w-[26rem]">
-          <div style={pull.style}>
-            {/* Одна фигура — карточка и стрелка-хвостик вырезаны одним
-                `clip-path` (см. `.glass.zona-window` в globals.css), поэтому
-                растут и выглядят как одно целое, без шва. `pt` — не
-                произвольное число: 1.5rem исходного отступа плюс
-                `--arrow-size` (1.05rem) той же карточки, зарезервированные
-                под стрелку сверху. */}
-            <div className="glass zona-window relative w-full pb-[1.5rem] pl-[1.5rem] pr-[1.5rem] pt-[2.55rem]">
-              {/* Ручка-хват: отрицательные поля дотягивают её до самых краёв
-                  карточки — до той же кромки, куда `--t` сажает вырез
-                  стрелки, — так что это один и тот же стеклянный кусок,
-                  а не отдельная плашка над ним. Жест висит только здесь,
-                  а не на всей карточке, — иначе тап по полям формы то
-                  и дело спорил бы с перетаскиванием. */}
-              <div
-                {...pull.handleProps}
-                className="-mx-[1.5rem] -mt-[2.55rem] mb-[0.5rem] flex cursor-grab flex-col items-center gap-[0.4rem] pb-[0.7rem] pt-[1.6rem] active:cursor-grabbing"
-              >
-                <span aria-hidden className="h-[0.28rem] w-[2.6rem] rounded-full bg-star/25" />
-                <span className="font-system text-[11px] tracking-[0.04em] text-star/45">
-                  потяни вниз, чтобы закрыть
+      {/* Слой с карточкой (`z-50`, выше тьмы по краям `z-40` внутри
+          `LiftedSky`) и его положение под звездой живут в `ZonaAuthReveal`. */}
+      <ZonaAuthReveal revealed={revealed} className="w-full max-w-[26rem]">
+        <div style={pull.style}>
+          {/* Одна фигура — карточка и стрелка-хвостик вырезаны одним
+              `clip-path` (см. `.glass.zona-window` в globals.css), поэтому
+              растут и выглядят как одно целое, без шва. `pt` — не
+              произвольное число: 1.5rem исходного отступа плюс
+              `--arrow-size` (1.05rem) той же карточки, зарезервированные
+              под стрелку сверху. */}
+          <div className="glass zona-window relative w-full pb-[1.5rem] pl-[1.5rem] pr-[1.5rem] pt-[2.55rem]">
+            {/* Ручка-хват: отрицательные поля дотягивают её до самых краёв
+                карточки — до той же кромки, куда `--t` сажает вырез
+                стрелки, — так что это один и тот же стеклянный кусок,
+                а не отдельная плашка над ним. Жест висит только здесь,
+                а не на всей карточке, — иначе тап по полям формы то
+                и дело спорил бы с перетаскиванием. */}
+            <div
+              {...pull.handleProps}
+              className="-mx-[1.5rem] -mt-[2.55rem] mb-[0.5rem] flex cursor-grab flex-col items-center gap-[0.4rem] pb-[0.7rem] pt-[1.6rem] active:cursor-grabbing"
+            >
+              <span aria-hidden className="h-[0.28rem] w-[2.6rem] rounded-full bg-star/25" />
+              <span className="font-system text-[11px] tracking-[0.04em] text-star/45">
+                потяни вниз, чтобы закрыть
+              </span>
+            </div>
+
+            {/* Место аватарки из референса — вместо неё солнце из вложения,
+                без круглой подложки-бейджа (см. `SunAccent` выше). */}
+            <div className="mb-[0.9rem] flex justify-center">
+              <SunAccent />
+            </div>
+
+            <div className="flex flex-col gap-[0.7rem]">
+              <label className="block">
+                <span className="font-system mb-[0.4rem] block text-[11.5px] font-semibold tracking-[0.05em] text-star/54">
+                  никнейм
                 </span>
-              </div>
+                <span className="flex items-center gap-[0.6rem] rounded-[1rem] border border-white/14 bg-night/40 px-[0.9rem] py-[0.75rem]">
+                  <IconUser size={17} className="shrink-0 text-star/45" />
+                  <input
+                    type="text"
+                    value={nickname}
+                    onChange={(e) => setNickname(e.target.value)}
+                    placeholder="как тебя называть"
+                    maxLength={24}
+                    autoComplete="username"
+                    className="font-system w-full bg-transparent text-[14.5px] text-star placeholder:text-star/35 focus:outline-none"
+                  />
+                </span>
+              </label>
 
-              {/* Место аватарки из референса — вместо неё солнце из вложения,
-                  без круглой подложки-бейджа (см. `SunAccent` выше). */}
-              <div className="mb-[0.9rem] flex justify-center">
-                <SunAccent />
-              </div>
+              <label className="block">
+                <span className="font-system mb-[0.4rem] block text-[11.5px] font-semibold tracking-[0.05em] text-star/54">
+                  пароль
+                </span>
+                <span className="flex items-center gap-[0.6rem] rounded-[1rem] border border-white/14 bg-night/40 px-[0.9rem] py-[0.75rem]">
+                  <IconLock size={17} className="shrink-0 text-star/45" />
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="придумай пароль"
+                    autoComplete="new-password"
+                    className="font-system w-full bg-transparent text-[14.5px] text-star placeholder:text-star/35 focus:outline-none"
+                  />
+                </span>
+              </label>
 
-              <div className="flex flex-col gap-[0.7rem]">
-                <label className="block">
-                  <span className="font-system mb-[0.4rem] block text-[11.5px] font-semibold tracking-[0.05em] text-star/54">
-                    никнейм
-                  </span>
-                  <span className="flex items-center gap-[0.6rem] rounded-[1rem] border border-white/14 bg-night/40 px-[0.9rem] py-[0.75rem]">
-                    <IconUser size={17} className="shrink-0 text-star/45" />
-                    <input
-                      type="text"
-                      value={nickname}
-                      onChange={(e) => setNickname(e.target.value)}
-                      placeholder="как тебя называть"
-                      maxLength={24}
-                      autoComplete="username"
-                      className="font-system w-full bg-transparent text-[14.5px] text-star placeholder:text-star/35 focus:outline-none"
-                    />
-                  </span>
-                </label>
+              <button
+                type="button"
+                disabled={!ready}
+                onClick={(e) => {
+                  if (e.detail > 0) e.currentTarget.blur();
+                  setTried(true);
+                }}
+                className="font-system mt-[0.3rem] rounded-[1rem] bg-amber/90 py-[0.85rem] text-center text-[14.5px] font-semibold text-night-deep transition-transform duration-300 active:scale-[0.985] disabled:opacity-35 disabled:active:scale-100"
+              >
+                войти
+              </button>
 
-                <label className="block">
-                  <span className="font-system mb-[0.4rem] block text-[11.5px] font-semibold tracking-[0.05em] text-star/54">
-                    пароль
-                  </span>
-                  <span className="flex items-center gap-[0.6rem] rounded-[1rem] border border-white/14 bg-night/40 px-[0.9rem] py-[0.75rem]">
-                    <IconLock size={17} className="shrink-0 text-star/45" />
-                    <input
-                      type="password"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="придумай пароль"
-                      autoComplete="new-password"
-                      className="font-system w-full bg-transparent text-[14.5px] text-star placeholder:text-star/35 focus:outline-none"
-                    />
-                  </span>
-                </label>
-
-                <button
-                  type="button"
-                  disabled={!ready}
-                  onClick={(e) => {
-                    if (e.detail > 0) e.currentTarget.blur();
-                    setTried(true);
-                  }}
-                  className="font-system mt-[0.3rem] rounded-[1rem] bg-amber/90 py-[0.85rem] text-center text-[14.5px] font-semibold text-night-deep transition-transform duration-300 active:scale-[0.985] disabled:opacity-35 disabled:active:scale-100"
-                >
-                  войти
-                </button>
-
-                {tried && (
-                  <p className="font-system text-center text-[12px] leading-snug text-star/56">
-                    совсем скоро — как только подключим базу, здесь и правда
-                    можно будет войти
-                  </p>
-                )}
-              </div>
+              {tried && (
+                <p className="font-system text-center text-[12px] leading-snug text-star/56">
+                  совсем скоро — как только подключим базу, здесь и правда
+                  можно будет войти
+                </p>
+              )}
             </div>
           </div>
-        </ZonaAuthReveal>
-      </div>
+        </div>
+      </ZonaAuthReveal>
     </main>
   );
 }

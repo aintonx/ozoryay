@@ -287,12 +287,17 @@ export function createSky(canvas: HTMLCanvasElement, initial: SkyOptions): SkyHa
     openAmt = approach(openAmt, target, rate * dt);
     const eased = easeOut(openAmt);
 
-    // Звезда «Зоны»: разгорается за полсекунды, гаснет обратно за 0.6 —
-    // тот же порядок, что у письма выше, чуть медленнее, потому что это
-    // не вспышка, а именно разгорание маяка.
+    // Звезда «Зоны»: разгорается за те же 0.64 с, за которые из неё растёт
+    // окно входа (`REVEAL_MS` в `ZonaAuthReveal`), — яркость и рост идут
+    // одним движением, а не одно за другим. Гаснет обратно чуть быстрее.
+    // При `prefers-reduced-motion` — сразу, без растяжки во времени.
     const zonaTarget = clamp01(opts.zonaStarBoost);
-    const zonaRate = zonaTarget > zonaBoost ? 1 / 0.5 : 1 / 0.6;
-    zonaBoost = approach(zonaBoost, zonaTarget, zonaRate * dt);
+    if (opts.reducedMotion) {
+      zonaBoost = zonaTarget;
+    } else {
+      const zonaRate = zonaTarget > zonaBoost ? 1 / 0.64 : 1 / 0.5;
+      zonaBoost = approach(zonaBoost, zonaTarget, zonaRate * dt);
+    }
 
     if (opts.birthNight !== birthSeen) {
       birthSeen = opts.birthNight;
@@ -416,7 +421,7 @@ export function createSky(canvas: HTMLCanvasElement, initial: SkyOptions): SkyHa
 
     // Звезда «Зоны» — тем же порядком: до всякой заслонки, гаснет вместе
     // с небом при открытом письме или прожекторе, ровно как соседка выше.
-    drawZonaStar(ctx, w, h, t, opts.reducedMotion, zonaBoost);
+    drawZonaStar(ctx, w, h, t, opts.reducedMotion, easeInOut(zonaBoost));
 
     // Луна стоит там, где она на самом деле сейчас над её городом: восходит,
     // идёт по небу, садится за холмы. Иногда её просто нет — она под землёй,
@@ -551,6 +556,12 @@ function approach(value: number, target: number, step: number): number {
 
 function easeOut(x: number): number {
   return 1 - Math.pow(1 - x, 3);
+}
+
+/** S-образная кривая — того же семейства, что `--ease-lift` у карточки
+ *  входа: яркость звезды и рост окна из неё должны идти в одном ритме. */
+function easeInOut(x: number): number {
+  return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
 }
 
 function clamp01(x: number): number {
@@ -810,9 +821,11 @@ function drawJourneyStar(
  * света. `boost` 0..1 — уже сглаженное значение (см. `zonaBoost` в
  * `frame`), поэтому здесь только форма, без собственной кривой.
  *
- * В покое (`boost` = 0) читается как обычная звезда-день потеплее, не
- * маяк, — тише соседки слева: та ведёт полёт по нажатию кнопки, эта пока
- * ничего не обещает, только ждёт своего момента.
+ * В покое (`boost` = 0) — тот же радиус, что у маяка «Смеха», и чуть более
+ * тихий ореол: вечная точка неба, которую видно всегда, а не гостья,
+ * появляющаяся к нужному моменту. На главном экране `boost` остаётся
+ * нулём даже во время подъёма взгляда: разгорается она не по нажатию на
+ * виджет, а ровно тогда, когда из неё начинает расти окно входа.
  */
 function drawZonaStar(
   ctx: CanvasRenderingContext2D,
@@ -824,16 +837,18 @@ function drawZonaStar(
 ) {
   const x = LAYOUT.zonaStar.x * w;
   const y = LAYOUT.zonaStar.y * h;
-  const pulse = reducedMotion ? 1 : 1 + 0.07 * Math.sin((t / 3.6) * TAU);
-  const baseR = Math.max(1.5, Math.min(w, h) * 0.0032);
-  const r = baseR * (1 + boost * 0.7) * pulse;
-  const halo = r * (9 + boost * 5);
-  const a = 0.62 + boost * 0.38;
+  const pulse = reducedMotion ? 1 : 1 + 0.08 * Math.sin((t / 3.9) * TAU);
+  // В покое — вровень с маяком «Смеха» (тот же радиус, чуть тише ореол):
+  // вечная звезда, а не гостья, появляющаяся к нужному моменту.
+  const baseR = Math.max(1.7, Math.min(w, h) * 0.0036);
+  const r = baseR * (1 + boost * 0.85) * pulse;
+  const halo = r * (11 + boost * 9);
+  const a = 0.82 + boost * 0.18;
 
   const g = ctx.createRadialGradient(x, y, 0, x, y, halo);
-  g.addColorStop(0, withAlpha(PALETTE.amberHot, 0.5 * a));
-  g.addColorStop(0.12, withAlpha(PALETTE.amber, 0.2 * a));
-  g.addColorStop(0.4, withAlpha(PALETTE.amber, 0.05 * a));
+  g.addColorStop(0, withAlpha(PALETTE.amberHot, (0.52 + boost * 0.2) * a));
+  g.addColorStop(0.12, withAlpha(PALETTE.amber, (0.21 + boost * 0.14) * a));
+  g.addColorStop(0.4, withAlpha(PALETTE.amber, (0.055 + boost * 0.05) * a));
   g.addColorStop(1, withAlpha(PALETTE.amber, 0));
   ctx.fillStyle = g;
   ctx.fillRect(x - halo, y - halo, halo * 2, halo * 2);
