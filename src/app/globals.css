@@ -415,6 +415,14 @@ body {
   content: "";
   position: absolute;
   inset: 0;
+  /* Без этого блик — позиционированный слой поверх непозиционированной
+     формы: он и рисуется над полями, и ловит на себя все касания (окно
+     «намертво» — ни закрыть, ни ввести). `z-index: -1` кладёт его под
+     содержимое, но над фоном карточки: у `.glass` есть `backdrop-filter`,
+     значит, это свой контекст наложения. Грейн `.glass::after` по той же
+     причине давно с `pointer-events: none`. */
+  z-index: -1;
+  pointer-events: none;
   clip-path: inherit;
   background: radial-gradient(
     60% 40% at 50% 0%,
