@@ -1,3 +1,4 @@
+import { ZONA_REVEAL_MS, ZONA_STAR_FADE_MS } from "../zonaTiming";
 import { COMET_DURATION, drawComet } from "./comet";
 import { dawnRise, drawDawn } from "./dawn";
 import { LAYOUT, clipToSky, glowXFromBearing, groundYAt } from "./layout";
@@ -287,16 +288,17 @@ export function createSky(canvas: HTMLCanvasElement, initial: SkyOptions): SkyHa
     openAmt = approach(openAmt, target, rate * dt);
     const eased = easeOut(openAmt);
 
-    // Звезда «Зоны»: разгорается за те же 0.64 с, за которые из неё растёт
-    // окно входа (`REVEAL_MS` в `ZonaAuthReveal`), — яркость и рост идут
-    // одним движением, а не одно за другим. Гаснет обратно чуть быстрее.
+    // Звезда «Зоны»: разгорается за те же `ZONA_REVEAL_MS`, за которые из неё
+    // растёт окно входа, — яркость и рост идут одним движением, а не одно
+    // за другим. Гаснет заметно дольше (`ZONA_STAR_FADE_MS`): вспышка быстрая,
+    // а затухание протяжное и идёт уже на главном экране, за виджетами.
     // При `prefers-reduced-motion` — сразу, без растяжки во времени.
     const zonaTarget = clamp01(opts.zonaStarBoost);
     if (opts.reducedMotion) {
       zonaBoost = zonaTarget;
     } else {
-      const zonaRate = zonaTarget > zonaBoost ? 1 / 0.64 : 1 / 0.5;
-      zonaBoost = approach(zonaBoost, zonaTarget, zonaRate * dt);
+      const zonaMs = zonaTarget > zonaBoost ? ZONA_REVEAL_MS : ZONA_STAR_FADE_MS;
+      zonaBoost = approach(zonaBoost, zonaTarget, (1000 / zonaMs) * dt);
     }
 
     if (opts.birthNight !== birthSeen) {

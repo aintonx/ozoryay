@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { ZONA_LIFT_ZOOM } from "@/components/ZonaLift";
 import { LAYOUT } from "@/lib/sky/layout";
 import { useReducedMotion } from "@/lib/useReducedMotion";
+import { ZONA_DIM_MS, ZONA_REVEAL_MS } from "@/lib/zonaTiming";
 
 interface ZonaAuthRevealProps {
   /** Момент, когда звезда начинает разгораться, а окно — расти из неё.
@@ -14,13 +15,6 @@ interface ZonaAuthRevealProps {
   children: ReactNode;
   className?: string;
 }
-
-/** От первого кадра до полностью раскрытой карточки. Столько же длится
- *  разгорание звезды в рендерере (`zonaRate` в `renderer.ts`). */
-const REVEAL_MS = 640;
-
-/** Смыкание тьмы вокруг звезды и карточки. */
-const DIM_MS = 320;
 
 /**
  * Экранная высота звезды «Зоны», в процентах высоты экрана.
@@ -97,7 +91,7 @@ export default function ZonaAuthReveal({
             // границы читаются по тем же процентам, что и положение звезды.
             background: `linear-gradient(to bottom, var(--color-night-deep) 0%, transparent ${STAR_TOP_PCT - 7}%, transparent 78%, var(--color-night-deep) 100%)`,
             opacity: revealed ? 1 : 0,
-            transition: `opacity ${DIM_MS}ms var(--ease-emerge)`,
+            transition: `opacity ${ZONA_DIM_MS}ms var(--ease-emerge)`,
           }}
         />
       )}
@@ -116,7 +110,7 @@ export default function ZonaAuthReveal({
           style={{
             transformOrigin: `50% ${-BOX_BELOW_STAR_REM}rem`,
             transform: reducedMotion || revealed ? "scale(1)" : "scale(0.03)",
-            transition: reducedMotion ? "none" : `transform ${REVEAL_MS}ms var(--ease-lift)`,
+            transition: reducedMotion ? "none" : `transform ${ZONA_REVEAL_MS}ms var(--ease-lift)`,
           }}
         >
           {children}

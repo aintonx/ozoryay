@@ -15,8 +15,25 @@ import { useEffect, useRef, type ReactNode } from "react";
  */
 export const ZONA_LIFT_ZOOM = 1.4;
 
-/** От первого кадра до вызова onDone — обычный подъём, тапом по виджету. */
-export const ZONA_LIFT_MS = 1500;
+/**
+ * Длительность подъёма, тапом по виджету. Было 1500 мс: от нажатия до
+ * открытого окна проходило больше двух секунд, и значительная часть
+ * этого — просто ожидание. Сейчас вдвое короче, а кривая та же
+ * (`--ease-lift`): она S-образная, так что подъём не «ускорился», а
+ * сжался целиком — разгон, ход и торможение остались на своих местах.
+ */
+export const ZONA_LIFT_MS = 750;
+
+/**
+ * На какой доле подъёма стартует переход на `/zona`. Хвост S-образной
+ * кривой почти неподвижен: к 85% времени небо уже на 97.8% пути, остаток —
+ * меньше процента масштаба (порядка полутора точек у звезды), глазом не
+ * различить. А переход и монтаж новой страницы занимают заметное
+ * время сами по себе, и если ждать конца подъёма, они идут впустую уже
+ * после него — на экране стоит замершее небо. Старый экран продолжает
+ * доезжать, пока новый собирается.
+ */
+export const ZONA_NAVIGATE_AT = 0.85;
 
 /**
  * То же самое, но при включённом `prefers-reduced-motion`: сцена вообще не
@@ -115,7 +132,8 @@ interface ZonaLiftProps {
   /** Небо целиком — оно оборачивается здесь, а не подменяется: тот же
    *  канвас, та же картинка звёзд, без искажений и без второго рендера. */
   children: ReactNode;
-  /** Взгляд поднят до конца, тьма сомкнулась — можно открывать страницу. */
+  /** Взгляд почти поднят (см. `ZONA_NAVIGATE_AT`), тьма почти сомкнулась —
+   *  пора открывать страницу. */
   onDone: () => void;
 }
 
@@ -131,19 +149,25 @@ interface ZonaLiftProps {
  * без какого-либо перехода (см. `Night`, ветка `zonaReturning`).
  */
 export default function ZonaLift({ active, reducedMotion, children, onDone }: ZonaLiftProps) {
-  const fired = useRef(false);
   const ms = reducedMotion ? ZONA_LIFT_REDUCED_MS : ZONA_LIFT_MS;
+  // Без подъёма (`reducedMotion`) раньше конца ждать нечего — там и так коротко.
+  const delay = reducedMotion ? ms : ms * ZONA_NAVIGATE_AT;
+
+  // Свежий `onDone` — через ref, а не через зависимости эффекта. Раньше
+  // таймер взводился один раз за подъём (флагом `fired`), а при любой смене
+  // зависимостей эффект пересоздавался: старый таймер снимался, а новый
+  // не ставился, потому что флаг уже стоял. Подъём тогда зависал навсегда:
+  // виджеты спрятаны, небо поднято, а страница не открывается.
+  const onDoneRef = useRef(onDone);
+  useEffect(() => {
+    onDoneRef.current = onDone;
+  });
 
   useEffect(() => {
-    if (!active) {
-      fired.current = false;
-      return;
-    }
-    if (fired.current) return;
-    fired.current = true;
-    const t = window.setTimeout(onDone, ms);
+    if (!active) return;
+    const t = window.setTimeout(() => onDoneRef.current(), delay);
     return () => window.clearTimeout(t);
-  }, [active, onDone, ms]);
+  }, [active, delay]);
 
   return (
     <LiftedSky

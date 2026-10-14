@@ -20,6 +20,9 @@ import { useMemories } from "@/lib/useMemories";
 import { useObserver } from "@/lib/useObserver";
 import { useReducedMotion } from "@/lib/useReducedMotion";
 import { useSeparationCounter } from "@/lib/time/useSeparationDays";
+import { freezeFollowers, loadFollowers, useFollowersSettled } from "@/lib/useFollowers";
+import { whenFramesSettle } from "@/lib/whenFramesSettle";
+import { clearZonaStarLit, peekZonaStarLit } from "@/lib/zonaStarHandoff";
 
 /** Сколько держится текст вспышки, если её не закрыли раньше. */
 const SPARK_MS = 9000;
@@ -41,6 +44,23 @@ const DIALOG_ID_BASE = 1000;
 const LIT_LIMIT = 30;
 
 const HINT_TEXT = "нажми ещё раз — загорится новая звезда";
+
+/**
+ * Сколько максимум ждём ответа про подписчиков, прежде чем показать
+ * виджеты как есть. В обычном случае ожидания нет вовсе: данные уже в
+ * модуле с прошлого показа (см. `useFollowers`). Это потолок для
+ * медленной сети, чтобы экран не стоял пустым.
+ */
+const FOLLOWERS_WAIT_MS = 900;
+
+/**
+ * Сколько ждём открытия страницы «Зоны» после старта перехода. Обычно она
+ * открывается за доли секунды и `Night` размонтируется, а этот таймер
+ * вместе с ним. Если не открылась (чанк не подгрузился, пропала сеть) —
+ * возвращаем экран, как он был, а не оставляем человека перед пустым
+ * поднятым небом без единой кнопки.
+ */
+const ZONA_NAV_TIMEOUT_MS = 6000;
 
 /** Ключ в sessionStorage: страница `/zona` ставит его перед уходом свайпом
  *  вниз, чтобы здесь понять — это не обычный заход, а возврат. Камера к
@@ -134,6 +154,12 @@ export default function Night({ settings, letters }: NightProps) {
    *  плоским (`ZonaLift` получает `active=false` всё время), потому что
    *  оно уже опущено жестом на `/zona` до того, как случилась навигация. */
   const [zonaReturning, setZonaReturning] = useState(false);
+  /** Яркость звезды «Зоны» на этом небе. В покое — 0. После закрытия окна
+   *  на `/zona` стартует с 1 — звезда там ещё горела — и сама гаснет, плавно,
+   *  уже за вернувшимися виджетами (см. `zonaStarHandoff` и эффект ниже).
+   *  Ленивый инициализатор читает переменную модуля, не хранилище браузера:
+   *  на гидратации она всегда пуста, расхождения с HTML не бывает. */
+  const [zonaStarBoost, setZonaStarBoost] = useState(() => (peekZonaStarLit() ? 1 : 0));
 
   const timers = useRef<number[]>([]);
   const sparkTimer = useRef<number | undefined>(undefined);
@@ -149,12 +175,14 @@ export default function Night({ settings, letters }: NightProps) {
     };
   }, []);
 
-  // Прогреваем чанк страницы «Зоны» заранее, а не в момент навигации: подъём
-  // взгляда (`ZonaLift`) и так длится достаточно, чтобы успеть подгрузить его
-  // в фоне, и к моменту, когда тьма по краям сомкнётся, переход на `/zona`
-  // должен случиться без единого лишнего кадра ожидания (apple-design:
+  // Прогреваем чанк страницы «Зоны» заранее, а не в момент навигации: между
+  // монтированием главного экрана и нажатием на виджет проходят секунды
+  // (заставка, да и просто пока рука дотянется), и к моменту, когда подъём
+  // взгляда (`ZonaLift`) доходит до перехода, страница уже в кэше и
+  // переход на `/zona` не тратит ни кадра на ожидание (apple-design:
   // «be vigilant about every latency» — на входном пути ничего, кроме самого
-  // жеста, не должно тормозить кадр).
+  // жеста, не должно тормозить кадр). Подъём теперь вдвое короче и на
+  // подгрузку не рассчитывает: прогрев от него не зависит.
   useEffect(() => {
     router.prefetch("/zona");
   }, [router]);
@@ -169,17 +197,35 @@ export default function Night({ settings, letters }: NightProps) {
   // опускать одну и ту же камеру. Именно `useLayoutEffect`, а не `useEffect`:
   // он успевает до показа кадра пользователю, поэтому обычное вступление не
   // мелькает даже на миг.
+  //
+  // Определение возврата — один раз, в ref: React в режиме разработки
+  // (StrictMode) гоняет эффект дважды, а метка из `sessionStorage` читается
+  // и стирается за один присест. Второй прогон раньше находил её уже
+  // стёртой и выходил, а таймер первого к этому моменту был снят —
+  // `zonaReturning` оставался `true` навсегда, и виджеты не возвращались.
+  //
+  // Виджеты возвращаются не «на следующем кадре», а когда главный поток
+  // успокоился (`whenFramesSettle`). Только что смонтированная страница
+  // тяжёлая: канвас строит слои, стекло виджетов растеризуется впервые. Если
+  // запустить въезд в первый же кадр, он получается длинным, и CSS-переход,
+  // считающий по часам, на втором кадре перескакивает сразу вперёд — рывок.
+  // Случался не всегда: зависело от устройства и от того, что успело
+  // отрисоваться.
+  const returnDetected = useRef<boolean | null>(null);
   useLayoutEffect(() => {
-    let returning = false;
-    try {
-      returning = window.sessionStorage.getItem(ZONA_RETURN_KEY) === "1";
-      if (returning) window.sessionStorage.removeItem(ZONA_RETURN_KEY);
-    } catch {
-      // Приватный режим или отключённое хранилище — просто открываемся
-      // как обычно, без разворота.
-      returning = false;
+    if (returnDetected.current === null) {
+      let returning = false;
+      try {
+        returning = window.sessionStorage.getItem(ZONA_RETURN_KEY) === "1";
+        if (returning) window.sessionStorage.removeItem(ZONA_RETURN_KEY);
+      } catch {
+        // Приватный режим или отключённое хранилище — просто открываемся
+        // как обычно, без разворота.
+        returning = false;
+      }
+      returnDetected.current = returning;
     }
-    if (!returning) return;
+    if (!returnDetected.current) return;
 
     // Три setState подряд внутри эффекта — обычно повод насторожиться, но
     // здесь это ровно тот случай, для которого useLayoutEffect и существует:
@@ -190,12 +236,24 @@ export default function Night({ settings, letters }: NightProps) {
     // useState здесь не подходит: он читал бы sessionStorage уже на первом
     // клиентском рендере, который обязан совпасть с тем, что зашито
     // в статический HTML, иначе — расхождение при гидратации.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSkipDawn(true);
     setIntro(2);
     setZonaReturning(true);
-    const raf = window.requestAnimationFrame(() => setZonaReturning(false));
-    return () => window.cancelAnimationFrame(raf);
+    return whenFramesSettle(() => setZonaReturning(false));
+  }, []);
+
+  // Звезда «Зоны» после закрытия окна: канвас уже создан с яркостью 1
+  // (см. `useState` выше), здесь — только плавно погасить её, когда кадры
+  // пошли ровно. Гаснет `ZONA_STAR_FADE_MS`, уже за виджетами. Передача
+  // принимается один раз и в ref — по той же причине, что и выше.
+  const starHandoff = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (starHandoff.current === null) {
+      starHandoff.current = peekZonaStarLit();
+      clearZonaStarLit();
+    }
+    if (!starHandoff.current) return;
+    return whenFramesSettle(() => setZonaStarBoost(0), { stableFrames: 2, capMs: 500 });
   }, []);
 
   const later = useCallback((fn: () => void, ms: number) => {
@@ -359,7 +417,12 @@ export default function Night({ settings, letters }: NightProps) {
    *  прогрет заранее (см. эффект с `router.prefetch` выше), так что сама
    *  навигация происходит без задержки на подгрузку чанка ровно в момент,
    *  когда тьма по краям уже сомкнулась. */
-  const onZonaLiftDone = useCallback(() => router.push("/zona"), [router]);
+  const onZonaLiftDone = useCallback(() => {
+    router.push("/zona");
+    // Не открылась — вернуть всё как было. Открылась — `Night` уже
+    // размонтирован, и вместе с ним снят этот таймер (см. очистку выше).
+    later(() => setZonaOpening(false), ZONA_NAV_TIMEOUT_MS);
+  }, [router, later]);
 
   // Всё, что за вечер уже зажглось: отговорившие светятся ровным следом,
   // говорящая прямо сейчас — на полную. Вечную лампу рендерер зажигает сам,
@@ -378,7 +441,25 @@ export default function Night({ settings, letters }: NightProps) {
 
   const showing = spark !== null || projectorPlaying;
   // Интерфейс уходит с глаз на всё, ради чего стоит смотреть на небо.
-  const veiled = intro !== 2 || showing || kissInFlight || journey || zonaOpening || zonaReturning;
+  const veiledBase = intro !== 2 || showing || kissInFlight || journey || zonaOpening || zonaReturning;
+
+  // Виджеты не выезжают, пока не определён их набор: третья карточка
+  // («Ты восхищаешь») появляется только после ответа с файлом, и если
+  // она вставала в сетку посреди выезда, `fit()` пересчитывал масштаб и
+  // ВСЕ виджеты прыгали на глазах (см. `useFollowers`). В обычном случае
+  // данные уже в модуле, и ожидания нет. Таймер — потолок на плохую
+  // сеть, и ставится он, только когда больше ничто не держит занавес:
+  // пока идёт вступление, ответ спокойно приходит в его тени.
+  const followersSettled = useFollowersSettled();
+  useEffect(() => {
+    loadFollowers();
+  }, []);
+  useEffect(() => {
+    if (veiledBase || followersSettled) return;
+    const t = window.setTimeout(freezeFollowers, FOLLOWERS_WAIT_MS);
+    return () => window.clearTimeout(t);
+  }, [veiledBase, followersSettled]);
+  const veiled = veiledBase || !followersSettled;
 
   return (
     <>
@@ -400,10 +481,11 @@ export default function Night({ settings, letters }: NightProps) {
           cometToken={kissToken}
           dawn={intro === 0}
           reducedMotion={reducedMotion}
-          // Нулём и во время подъёма взгляда: звезда «Зоны» вспыхивает не по
-          // нажатию на виджет, а ровно в тот миг, когда из неё начинает расти
-          // окно входа, — это уже на `/zona`, см. `zona/page.tsx`.
-          zonaStarBoost={0}
+          // В покое — 0, и во время подъёма взгляда тоже: звезда «Зоны»
+          // вспыхивает не по нажатию на виджет, а ровно в тот миг, когда из
+          // неё начинает расти окно входа, — это уже на `/zona`. Выше нуля
+          // бывает только после возврата оттуда — и гаснет сама.
+          zonaStarBoost={zonaStarBoost}
         />
       </ZonaLift>
 

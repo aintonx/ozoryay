@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Sky from "@/components/Sky";
 import { LiftedSky } from "@/components/ZonaLift";
@@ -11,6 +11,8 @@ import { useObserver } from "@/lib/useObserver";
 import { useReducedMotion } from "@/lib/useReducedMotion";
 import { useSeparationCounter } from "@/lib/time/useSeparationDays";
 import { usePullToClose } from "@/lib/usePullToClose";
+import { whenFramesSettle } from "@/lib/whenFramesSettle";
+import { markZonaStarLit } from "@/lib/zonaStarHandoff";
 
 /** Тот же ключ, что и в `Night.tsx` — вынесен туда, не сюда: страница
  *  «Зоны» его только выставляет и не обязана знать, как он используется. */
@@ -125,13 +127,34 @@ export default function ZonaPage() {
 
   // Один флаг на две вещи: из звезды начинает расти окно (`ZonaAuthReveal`)
   // и в тот же кадр она сама начинает гореть ярче (`zonaStarBoost` ниже).
-  // 20 мс — чтобы первый кадр успел нарисоваться схлопнутым, иначе переход
-  // не с чего запускать.
+  //
+  // Стартует не по таймеру, а когда кадры пошли ровно. Раньше стояло
+  // фиксированное «через 20 мс»: страница только что смонтирована, канвас
+  // неба строит слои в том же потоке, и таймер мог сработать раньше, чем
+  // браузер нарисовал схлопнутую карточку, — тогда переходу не с чего
+  // стартовать и окно просто возникало готовым. Или, наоборот, рост
+  // начинался на длинном кадре и перескакивал вперёд. Рост теперь всего
+  // 320 мс — один такой кадр съел бы заметную часть.
   const [revealed, setRevealed] = useState(false);
+  useEffect(
+    () => whenFramesSettle(() => setRevealed(true), { stableFrames: 2, capMs: 300 }),
+    [],
+  );
+
+  // Звезда горит, пока открыто окно, и погаснуть должна плавно, уже на
+  // главной (`zonaStarHandoff`) — туда передаём «ушли при горящей». Не
+  // только в `handleClose`: тем же путём надо отдавать и уход любым другим
+  // способом (жест «назад», системная навигация), иначе там свет оборвётся.
+  const revealedRef = useRef(false);
   useEffect(() => {
-    const t = window.setTimeout(() => setRevealed(true), 20);
-    return () => window.clearTimeout(t);
-  }, []);
+    revealedRef.current = revealed;
+  }, [revealed]);
+  useEffect(
+    () => () => {
+      if (revealedRef.current) markZonaStarLit();
+    },
+    [],
+  );
 
   const ready = nickname.trim().length > 0 && password.length > 0;
 
@@ -143,6 +166,7 @@ export default function ZonaPage() {
       // главную, без разворота подъёма взгляда. Не критично: это красота,
       // а не функциональность.
     }
+    markZonaStarLit();
     router.push("/");
   }, [router]);
 
