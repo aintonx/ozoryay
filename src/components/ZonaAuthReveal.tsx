@@ -12,6 +12,20 @@ interface ZonaAuthRevealProps {
    *  яркость и рост стартуют в одном кадре, а не «сначала одно, потом
    *  другое». */
   revealed: boolean;
+  /**
+   * 0 — окно на месте, 1 — утянуто до конца (или уже закрывается). То же
+   * число, что ведёт небо (`LiftedSky`) и саму карточку, — поэтому тьма
+   * вокруг расходится в ногу с ними: чем сильнее тянут, тем больше звёзд
+   * проступает. Раньше тьма висела на полной силе до самого перехода и
+   * исчезала за один кадр вместе со страницей — звёзды по краям вспыхивали
+   * разом.
+   */
+  progress?: number;
+  /** `transition` жеста: `none`, пока тянут, и доводка после отпускания —
+   *  та же строка, что у карточки и неба, чтобы всё доезжало вместе. */
+  pullTransition?: string;
+  /** Жесту уже давали ход: дальше тьма принадлежит ему, а не появлению. */
+  pulled?: boolean;
   children: ReactNode;
   className?: string;
 }
@@ -64,6 +78,8 @@ const BOX_BELOW_STAR_REM = TIP_GAP_REM - TIP_BELOW_BOX_TOP_REM;
  *     чуть выше верха карточки, и схлопнутое окно целиком умещается в
  *     звезду, а потом из неё вытягивается: хвостик первым, окно за ним.
  *
+ * Тьма вокруг (`progress`) расходится вместе с жестом закрытия — см. поле.
+ *
  * Рост — единственное, что движет карточкой. Непрозрачность на ней не
  * трогается ни на кадр: у стекла от этого пропадает размытие, и оно
  * возвращается рывком (см. `.glass` в globals.css). Тьма вокруг блюра не
@@ -73,6 +89,9 @@ const BOX_BELOW_STAR_REM = TIP_GAP_REM - TIP_BELOW_BOX_TOP_REM;
  */
 export default function ZonaAuthReveal({
   revealed,
+  progress = 0,
+  pullTransition = "none",
+  pulled = false,
   children,
   className = "",
 }: ZonaAuthRevealProps) {
@@ -90,8 +109,11 @@ export default function ZonaAuthReveal({
             // «ниже любой карточки». Простая полоса вместо эллипса — её
             // границы читаются по тем же процентам, что и положение звезды.
             background: `linear-gradient(to bottom, var(--color-night-deep) 0%, transparent ${STAR_TOP_PCT - 7}%, transparent 78%, var(--color-night-deep) 100%)`,
-            opacity: revealed ? 1 : 0,
-            transition: `opacity ${ZONA_DIM_MS}ms var(--ease-emerge)`,
+            opacity: revealed ? 1 - progress : 0,
+            // Пока тянут и пока доводится — по жесту, 1:1 с картой и небом.
+            // До первого касания — свой, быстрый выход из темноты при
+            // открытии.
+            transition: pulled ? pullTransition : `opacity ${ZONA_DIM_MS}ms var(--ease-emerge)`,
           }}
         />
       )}

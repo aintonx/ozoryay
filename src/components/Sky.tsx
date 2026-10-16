@@ -23,6 +23,7 @@ export interface SkyProps {
   dawn: boolean;
   reducedMotion: boolean;
   zonaStarBoost: number;
+  zonaStarTrackMs: number | null;
 }
 
 export default function Sky(props: SkyProps) {

@@ -12,11 +12,16 @@ import { useReducedMotion } from "@/lib/useReducedMotion";
 import { useSeparationCounter } from "@/lib/time/useSeparationDays";
 import { usePullToClose } from "@/lib/usePullToClose";
 import { whenFramesSettle } from "@/lib/whenFramesSettle";
-import { markZonaStarLit } from "@/lib/zonaStarHandoff";
+import { markZonaExit } from "@/lib/zonaStarHandoff";
 
 /** Тот же ключ, что и в `Night.tsx` — вынесен туда, не сюда: страница
  *  «Зоны» его только выставляет и не обязана знать, как он используется. */
 const ZONA_RETURN_KEY = "zonaReturning";
+
+/** С каким запаздыванием звезда идёт за пальцем, пока карточку тянут (мс).
+ *  Мало — чтобы реагировала с первого пикселя, но не дрожала от шума
+ *  касания. После отпускания запаздывание берётся от длительности доводки. */
+const STAR_DRAG_TRACK_MS = 45;
 
 /**
  * Солнце из вложения, перекрашенное в свои же тона: исходный градиент
@@ -89,11 +94,16 @@ function SunAccent() {
  * один `clip-path` (`.glass.zona-window` в globals.css), а стоит она
  * кончиком хвостика прямо под звездой.
  *
- * Закрывается по-прежнему не кнопкой «назад», а тем же жестом, что
- * и шторки на телефоне: потяни вниз
+ * Закрывается по-прежнему не кнопкой «назад», а тем же жестом, что и шторки
+ * на телефоне: потяни вниз
  * за ручку сверху карточки (`usePullToClose`). Небо при этом опускается
  * вместе с пальцем один в один — тот же `t`, что ведёт карточку
- * (`pull.progress`), ведёт и масштаб неба через `LiftedSky`, так что
+ * (`pull.progress`), ведёт и масштаб неба через `LiftedSky`, и тьму вокруг,
+ * и свечение звезды: всё идёт за пальцем 1:1, а после отпускания доезжает
+ * вместе, одной кривой. Так устроены шторки в современных приложениях:
+ * оверлей считается от пройденного пути, а не включается по порогу. Ровно
+ * поэтому на стыке страниц ничего не вспыхивает — к моменту перехода тьма,
+ * свечение и зум уже на нуле, а главная стартует с тем же. Так что
  * «взгляд возвращается» не отдельным шагом после закрытия, а тем же самым
  * движением, что и сам жест: потянул вниз — и камера, и карточка идут
  * вместе, отпустил раньше порога — обе пружинят обратно наверх. Закрытие
@@ -141,17 +151,21 @@ export default function ZonaPage() {
     [],
   );
 
-  // Звезда горит, пока открыто окно, и погаснуть должна плавно, уже на
-  // главной (`zonaStarHandoff`) — туда передаём «ушли при горящей». Не
-  // только в `handleClose`: тем же путём надо отдавать и уход любым другим
-  // способом (жест «назад», системная навигация), иначе там свет оборвётся.
+  // Что оставляем главной при уходе (`zonaStarHandoff`): с какой яркостью
+  // горела звезда и вернулись ли жестом закрытия. Уровень — в ref, потому
+  // что читается из таймера и из очистки эффекта, где замыкание протухло бы.
+  // Передавать надо не только из `handleClose`, но и при уходе любым другим
+  // способом (жест «назад», системная навигация): иначе там свет оборвётся.
   const revealedRef = useRef(false);
+  const starLevelRef = useRef(0);
   useEffect(() => {
     revealedRef.current = revealed;
   }, [revealed]);
   useEffect(
     () => () => {
-      if (revealedRef.current) markZonaStarLit();
+      if (revealedRef.current) {
+        markZonaExit({ starLevel: starLevelRef.current, returning: false });
+      }
     },
     [],
   );
@@ -166,11 +180,30 @@ export default function ZonaPage() {
       // главную, без разворота подъёма взгляда. Не критично: это красота,
       // а не функциональность.
     }
-    markZonaStarLit();
+    markZonaExit({ starLevel: starLevelRef.current, returning: true });
     router.push("/");
   }, [router]);
 
   const pull = usePullToClose(handleClose);
+
+  // Свечение звезды и тьма вокруг идут за жестом так же, как карточка и
+  // небо: `progress` один на всех. Пока карточку не трогали — звезда
+  // горит «по времени» (вспышка при открытии); с первого касания — вслед за
+  // пальцем и больше к времени не возвращается: смена режима посреди жеста
+  // дала бы скачок яркости. Производное состояние через условный
+  // setState при рендере — приём из документации React, лишнего кадра нет.
+  const [touched, setTouched] = useState(false);
+  if (!touched && (pull.dragging || pull.closing)) setTouched(true);
+
+  const starLevel = revealed ? 1 - pull.progress : 0;
+  useEffect(() => {
+    starLevelRef.current = starLevel;
+  });
+  const starTrackMs = touched
+    ? pull.dragging
+      ? STAR_DRAG_TRACK_MS
+      : Math.round(pull.settleMs / 4)
+    : null;
 
   return (
     <main className="relative h-[100dvh] w-full overflow-hidden">
@@ -196,13 +229,20 @@ export default function ZonaPage() {
           cometToken={0}
           dawn={false}
           reducedMotion={reducedMotion}
-          zonaStarBoost={revealed ? 1 : 0}
+          zonaStarBoost={starLevel}
+          zonaStarTrackMs={starTrackMs}
         />
       </LiftedSky>
 
       {/* Слой с карточкой (`z-50`, выше тьмы по краям `z-40` внутри
           `LiftedSky`) и его положение под звездой живут в `ZonaAuthReveal`. */}
-      <ZonaAuthReveal revealed={revealed} className="w-full max-w-[26rem]">
+      <ZonaAuthReveal
+        revealed={revealed}
+        progress={pull.progress}
+        pullTransition={pull.transition}
+        pulled={touched}
+        className="w-full max-w-[26rem]"
+      >
         <div style={pull.style}>
           {/* Одна фигура — карточка и стрелка-хвостик вырезаны одним
               `clip-path` (см. `.glass.zona-window` в globals.css), поэтому

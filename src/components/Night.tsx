@@ -22,7 +22,7 @@ import { useReducedMotion } from "@/lib/useReducedMotion";
 import { useSeparationCounter } from "@/lib/time/useSeparationDays";
 import { freezeFollowers, loadFollowers, useFollowersSettled } from "@/lib/useFollowers";
 import { whenFramesSettle } from "@/lib/whenFramesSettle";
-import { clearZonaStarLit, peekZonaStarLit } from "@/lib/zonaStarHandoff";
+import { clearZonaExit, peekZonaExit } from "@/lib/zonaStarHandoff";
 
 /** Сколько держится текст вспышки, если её не закрыли раньше. */
 const SPARK_MS = 9000;
@@ -42,6 +42,9 @@ const KISS_MS = 3000;
 const DIALOG_ID_BASE = 1000;
 /** Сколько отговоривших звёзд остаётся гореть, прежде чем самые старые гаснут. */
 const LIT_LIMIT = 30;
+
+/** Ниже этой яркости звезду на стыке уже не передаём: глазом не видно. */
+const STAR_HANDOFF_MIN = 0.05;
 
 const HINT_TEXT = "нажми ещё раз — загорится новая звезда";
 
@@ -114,17 +117,28 @@ export default function Night({ settings, letters }: NightProps) {
 
   const [screen, setScreen] = useState<ScreenIndex>(0);
   /**
+   * Что оставила за собой страница «Зоны» (`null` — пришли не оттуда). Читается
+   * ровно один раз, в первом рендере, и из переменной модуля, а не из
+   * `sessionStorage`: канвас неба создаётся с теми пропсами, что есть В ЭТОТ
+   * момент, и поправить их задним числом нельзя. Раньше о возврате узнавали
+   * только в эффекте, уже после первого рендера, — и канвас рождался с
+   * `dawn: true`: на долю секунды вспыхивало зарево рассвета, которое потом
+   * гасло 420 мс прямо под выезжающими виджетами. На гидратации модуль
+   * всегда пуст, так что расхождения с серверной разметкой нет.
+   */
+  const [exit] = useState(peekZonaExit);
+  /**
    * Вступление: 0 — идёт, 1 — уходит, 2 — кончилось.
    *
    * Две ступени, а не одна: по первой канвас начинает убирать солнце, по
    * второй выезжают виджеты. Если выпускать их сразу, они наезжают на ещё
    * горящий свет и спорят с ним за середину экрана.
    */
-  const [intro, setIntro] = useState<0 | 1 | 2>(0);
+  const [intro, setIntro] = useState<0 | 1 | 2>(exit?.returning ? 2 : 0);
   /** Возврат со страницы `/zona` — тогда вступление не идёт вообще, экран
    *  открывается сразу в уже поднятом состоянии (см. `useLayoutEffect`
    *  ниже) и не должен получить своё обычное «рассвет». */
-  const [skipDawn, setSkipDawn] = useState(false);
+  const [skipDawn, setSkipDawn] = useState(exit?.returning ?? false);
   const [spark, setSpark] = useState<Spark | null>(null);
   /** Горящая звезда уходит: слова тают, свеча гаснет, следующая ждёт. */
   const [leaving, setLeaving] = useState(false);
@@ -153,13 +167,15 @@ export default function Night({ settings, letters }: NightProps) {
    *  метка веляет только виджетами, не небом: небо на возврате остаётся
    *  плоским (`ZonaLift` получает `active=false` всё время), потому что
    *  оно уже опущено жестом на `/zona` до того, как случилась навигация. */
-  const [zonaReturning, setZonaReturning] = useState(false);
-  /** Яркость звезды «Зоны» на этом небе. В покое — 0. После закрытия окна
-   *  на `/zona` стартует с 1 — звезда там ещё горела — и сама гаснет, плавно,
-   *  уже за вернувшимися виджетами (см. `zonaStarHandoff` и эффект ниже).
-   *  Ленивый инициализатор читает переменную модуля, не хранилище браузера:
-   *  на гидратации она всегда пуста, расхождения с HTML не бывает. */
-  const [zonaStarBoost, setZonaStarBoost] = useState(() => (peekZonaStarLit() ? 1 : 0));
+  const [zonaReturning, setZonaReturning] = useState(exit?.returning ?? false);
+  /** Яркость звезды «Зоны» на этом небе. В покое — 0. Если со страницы «Зоны»
+   *  ушли, пока звезда ещё горела (жест «назад»), стартует с этой яркости и
+   *  сама гаснет, плавно, уже за вернувшимися виджетами. После закрытия
+   *  жестом звезда там погасла вместе с картой — и здесь начинается с нуля,
+   *  без единой добавки (см. `zonaStarHandoff` и эффект ниже). */
+  const [zonaStarBoost, setZonaStarBoost] = useState(
+    exit !== null && exit.starLevel > STAR_HANDOFF_MIN ? exit.starLevel : 0,
+  );
 
   const timers = useRef<number[]>([]);
   const sparkTimer = useRef<number | undefined>(undefined);
@@ -211,17 +227,22 @@ export default function Night({ settings, letters }: NightProps) {
   // считающий по часам, на втором кадре перескакивает сразу вперёд — рывок.
   // Случался не всегда: зависело от устройства и от того, что успело
   // отрисоваться.
+  //
+  // Основной источник — `exit` (передача из модуля, см. выше): он известен уже
+  // в первом рендере, и канвас создаётся сразу правильным. Метка в
+  // `sessionStorage` осталась запасным путём и стирается в любом случае, чтобы
+  // не пережить возврат и не сработать на следующем заходе.
   const returnDetected = useRef<boolean | null>(null);
   useLayoutEffect(() => {
     if (returnDetected.current === null) {
-      let returning = false;
+      let returning = exit?.returning ?? false;
       try {
-        returning = window.sessionStorage.getItem(ZONA_RETURN_KEY) === "1";
-        if (returning) window.sessionStorage.removeItem(ZONA_RETURN_KEY);
+        const flagged = window.sessionStorage.getItem(ZONA_RETURN_KEY) === "1";
+        if (flagged) window.sessionStorage.removeItem(ZONA_RETURN_KEY);
+        returning = returning || flagged;
       } catch {
-        // Приватный режим или отключённое хранилище — просто открываемся
-        // как обычно, без разворота.
-        returning = false;
+        // Приватный режим или отключённое хранилище — остаётся только
+        // передача из модуля.
       }
       returnDetected.current = returning;
     }
@@ -240,7 +261,7 @@ export default function Night({ settings, letters }: NightProps) {
     setIntro(2);
     setZonaReturning(true);
     return whenFramesSettle(() => setZonaReturning(false));
-  }, []);
+  }, [exit]);
 
   // Звезда «Зоны» после закрытия окна: канвас уже создан с яркостью 1
   // (см. `useState` выше), здесь — только плавно погасить её, когда кадры
@@ -249,12 +270,12 @@ export default function Night({ settings, letters }: NightProps) {
   const starHandoff = useRef<boolean | null>(null);
   useEffect(() => {
     if (starHandoff.current === null) {
-      starHandoff.current = peekZonaStarLit();
-      clearZonaStarLit();
+      starHandoff.current = exit !== null && exit.starLevel > STAR_HANDOFF_MIN;
+      clearZonaExit();
     }
     if (!starHandoff.current) return;
     return whenFramesSettle(() => setZonaStarBoost(0), { stableFrames: 2, capMs: 500 });
-  }, []);
+  }, [exit]);
 
   const later = useCallback((fn: () => void, ms: number) => {
     timers.current.push(window.setTimeout(fn, ms));
@@ -486,6 +507,7 @@ export default function Night({ settings, letters }: NightProps) {
           // неё начинает расти окно входа, — это уже на `/zona`. Выше нуля
           // бывает только после возврата оттуда — и гаснет сама.
           zonaStarBoost={zonaStarBoost}
+          zonaStarTrackMs={null}
         />
       </ZonaLift>
 

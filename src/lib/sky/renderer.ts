@@ -1,4 +1,3 @@
-import { ZONA_REVEAL_MS, ZONA_STAR_FADE_MS } from "../zonaTiming";
 import { COMET_DURATION, drawComet } from "./comet";
 import { dawnRise, drawDawn } from "./dawn";
 import { LAYOUT, clipToSky, glowXFromBearing, groundYAt } from "./layout";
@@ -20,6 +19,7 @@ import {
   withAlpha,
 } from "./stars";
 import { drawTerrain } from "./terrain";
+import { shownZonaBoost, stepZonaBoost } from "./zonaStar";
 
 export const PALETTE = {
   nightDeep: "#05070F",
@@ -96,6 +96,13 @@ export interface SkyOptions {
    * а не уже посчитанной кривой.
    */
   zonaStarBoost: number;
+  /**
+   * `null` — яркость звезды идёт по времени (вспышка при открытии окна,
+   * затухание после возврата). Число — миллисекунды запаздывания, с которыми
+   * она идёт вслед за `zonaStarBoost`: так звезда ведёт себя, пока карточку
+   * тянут вниз (см. `stepZonaBoost`).
+   */
+  zonaStarTrackMs: number | null;
 }
 
 /** Сколько длится рождение звезды, секунд. */
@@ -277,7 +284,16 @@ export function createSky(canvas: HTMLCanvasElement, initial: SkyOptions): SkyHa
   }
 
   function frame(now: number) {
-    const t = (now - start) / 1000;
+    // Часы мерцания — общие для всех канвасов страницы, а не от создания
+    // каждого. Раньше `t` шло от момента создания, и на стыке страниц
+    // (главная ⇄ `/zona`) новый канвас стартовал с нуля: яркость КАЖДОЙ
+    // звезды одновременно прыгала на другую фазу своего мерцания, и всё
+    // небо разом «вздрагивало» — самая заметная часть вспышки после
+    // закрытия окна входа. Звёзды у обоих канвасов одни и те же (позиции,
+    // периоды и фазы — из зерна, не из `Math.random`), так что при общих
+    // часах стык получается бесшовным. От создания по-прежнему считается
+    // только то, что и должно начинаться с нуля, — восход (`dawnStart`).
+    const t = now / 1000;
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
 
@@ -288,18 +304,13 @@ export function createSky(canvas: HTMLCanvasElement, initial: SkyOptions): SkyHa
     openAmt = approach(openAmt, target, rate * dt);
     const eased = easeOut(openAmt);
 
-    // Звезда «Зоны»: разгорается за те же `ZONA_REVEAL_MS`, за которые из неё
-    // растёт окно входа, — яркость и рост идут одним движением, а не одно
-    // за другим. Гаснет заметно дольше (`ZONA_STAR_FADE_MS`): вспышка быстрая,
-    // а затухание протяжное и идёт уже на главном экране, за виджетами.
-    // При `prefers-reduced-motion` — сразу, без растяжки во времени.
-    const zonaTarget = clamp01(opts.zonaStarBoost);
-    if (opts.reducedMotion) {
-      zonaBoost = zonaTarget;
-    } else {
-      const zonaMs = zonaTarget > zonaBoost ? ZONA_REVEAL_MS : ZONA_STAR_FADE_MS;
-      zonaBoost = approach(zonaBoost, zonaTarget, (1000 / zonaMs) * dt);
-    }
+    // Звезда «Зоны»: яркость и её режимы — в `zonaStar.ts`. По времени она
+    // разгорается за те же мс, за которые из неё растёт окно входа, а пока
+    // карточку тянут вниз, идёт вслед за пальцем.
+    zonaBoost = stepZonaBoost(zonaBoost, clamp01(opts.zonaStarBoost), dt, {
+      reducedMotion: opts.reducedMotion,
+      trackMs: opts.zonaStarTrackMs,
+    });
 
     if (opts.birthNight !== birthSeen) {
       birthSeen = opts.birthNight;
@@ -423,7 +434,7 @@ export function createSky(canvas: HTMLCanvasElement, initial: SkyOptions): SkyHa
 
     // Звезда «Зоны» — тем же порядком: до всякой заслонки, гаснет вместе
     // с небом при открытом письме или прожекторе, ровно как соседка выше.
-    drawZonaStar(ctx, w, h, t, opts.reducedMotion, easeInOut(zonaBoost));
+    drawZonaStar(ctx, w, h, t, opts.reducedMotion, shownZonaBoost(zonaBoost, opts.zonaStarTrackMs !== null));
 
     // Луна стоит там, где она на самом деле сейчас над её городом: восходит,
     // идёт по небу, садится за холмы. Иногда её просто нет — она под землёй,
@@ -558,12 +569,6 @@ function approach(value: number, target: number, step: number): number {
 
 function easeOut(x: number): number {
   return 1 - Math.pow(1 - x, 3);
-}
-
-/** S-образная кривая — того же семейства, что `--ease-lift` у карточки
- *  входа: яркость звезды и рост окна из неё должны идти в одном ритме. */
-function easeInOut(x: number): number {
-  return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
 }
 
 function clamp01(x: number): number {
